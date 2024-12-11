@@ -1,5 +1,6 @@
 """Module containing the GUI components of the application."""
 import logging
+import fitz
 from pathlib import Path
 from typing import List, Tuple, Optional
 from PyQt5.QtWidgets import (
@@ -16,7 +17,7 @@ from constants import (
     NO_RESULTS_MESSAGE, FOLDER_DIALOG_TITLE, PROCESSED_FOLDER_MARKER,
     MOVE_UP_TEXT, MOVE_DOWN_TEXT, REMOVE_PAIR_TEXT, ADD_PAIR_TEXT,
     PROCESS_TEXT, ADD_PDF_DIALOG_TITLE, REMOVE_CONFIRM_TITLE,
-    REMOVE_CONFIRM_TEXT, PDF_EXTENSION
+    REMOVE_CONFIRM_TEXT, PDF_EXTENSION, MERGE_AND_COMPRESS_PDFS
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
 
@@ -66,10 +67,10 @@ class MainWindow(QWidget):
         main_layout.addLayout(content_layout)
         
         # Add process button at bottom
-        self.process_button = QPushButton(PROCESS_TEXT)
-        self.process_button.setEnabled(False)
-        self.process_button.clicked.connect(self.process_selected)
-        main_layout.addWidget(self.process_button)
+        self.merge_btn = QPushButton(MERGE_AND_COMPRESS_PDFS)
+        self.merge_btn.setEnabled(False)
+        self.merge_btn.clicked.connect(self.merge_and_compress_pdfs)
+        main_layout.addWidget(self.merge_btn)
         
         self.setLayout(main_layout)
         
@@ -155,7 +156,7 @@ class MainWindow(QWidget):
         self.add_btn.setEnabled(False)
         self.add_btn.clicked.connect(self.add_pdf_pair)
         buttons_layout.addWidget(self.add_btn)
-        
+
         buttons_layout.addStretch()
         buttons_frame.setLayout(buttons_layout)
         parent_layout.addWidget(buttons_frame)
@@ -175,7 +176,7 @@ class MainWindow(QWidget):
         self.move_down_btn.setEnabled(is_folder and current_index < self.result_tree.topLevelItemCount() - 1)
         self.remove_btn.setEnabled(is_folder)
         self.add_btn.setEnabled(bool(self.selected_folder))
-        self.process_button.setEnabled(self.result_tree.topLevelItemCount() > 0)
+        self.merge_btn.setEnabled(self.result_tree.topLevelItemCount() > 0)
         
     def move_item_up(self) -> None:
         """Move the selected folder item up in the list."""
@@ -303,7 +304,7 @@ class MainWindow(QWidget):
                     map_pdf = pdf_path
                     
             folders.append((folder_path, PDFPair(doc_pdf, map_pdf, [])))
-            
+
         # TODO: Process the folders in the specified order
         logger.info(f"Processing {len(folders)} folders in specified order")
         QMessageBox.information(
@@ -311,7 +312,17 @@ class MainWindow(QWidget):
             "Processing Started",
             f"Processing {len(folders)} folders in the specified order."
         )
-        
+        pdf_paths = []
+        for folder_path, pair in folders:
+            # Order here is Document first, then Map
+            # If you need a different order, adjust accordingly.
+            if pair.document_pdf:
+                pdf_paths.append(pair.document_pdf)
+            if pair.map_pdf:
+                pdf_paths.append(pair.map_pdf)
+
+        print(pdf_paths)
+
     def select_home_folder(self) -> None:
         """Handle the folder selection dialog."""
         try:
@@ -467,3 +478,61 @@ class MainWindow(QWidget):
                 "Error",
                 f"Error displaying results: {str(e)}"
             )
+    
+    def merge_and_compress_pdfs(self):
+        """Process the selected PDF pairs."""
+        # Get all folder items
+        folders = []
+        for i in range(self.result_tree.topLevelItemCount()):
+            item = self.result_tree.topLevelItem(i)
+            folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
+            
+            # Get document and map PDFs
+            doc_pdf = None
+            map_pdf = None
+            
+            for j in range(item.childCount()):
+                child = item.child(j)
+                pdf_path = Path(child.toolTip(0).replace("Full path: ", ""))
+                if "(Document)" in child.text(0):
+                    doc_pdf = pdf_path
+                else:
+                    map_pdf = pdf_path
+                    
+            folders.append((folder_path, PDFPair(doc_pdf, map_pdf, [])))
+
+        pdf_paths = []
+        for folder_path, pair in folders:
+            # Order here is Document first, then Map
+            # If you need a different order, adjust accordingly.
+            if pair.document_pdf:
+                pdf_paths.append(pair.document_pdf)
+            if pair.map_pdf:
+                pdf_paths.append(pair.map_pdf)
+
+        output_path = self.selected_folder / "Print.pdf"
+        merged_doc = fitz.open()
+
+        # Append all PDFs in specified order
+        for pdf_path in pdf_paths:
+            with fitz.open(pdf_path) as src_doc:
+                # Append each page
+                merged_doc.insert_pdf(src_doc)
+
+        # Remove all annotations from each page to "flatten" the document
+        # (This removes pop-ups, comments, highlights, etc.)
+        for page_index in range(len(merged_doc)):
+            page = merged_doc[page_index]
+            annot = page.first_annot
+            while annot:
+                page.delete_annot(annot)
+                annot = page.first_annot
+
+        merged_doc.save(output_path, deflate=True, garbage=4)
+        merged_doc.close()
+
+        QMessageBox.information(
+            self,
+            "Merge and Compress",
+            f"Successfully merged!"
+        )

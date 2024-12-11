@@ -28,3 +28,5 @@ PROCESSED_FOLDER_MARKER: Final[str] = ".processed"  # Marker for processed folde
 ADD_PDF_DIALOG_TITLE: Final[str] = "Select PDF Files"
 REMOVE_CONFIRM_TITLE: Final[str] = "Confirm Removal"
 REMOVE_CONFIRM_TEXT: Final[str] = "Are you sure you want to remove this PDF pair?"
+
+MERGE_AND_COMPRESS_PDFS: Final[str] = "Merge and Compress."
