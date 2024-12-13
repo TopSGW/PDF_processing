@@ -1,0 +1,66 @@
+# Context
+You are tasked with generating a professional letter to property owners regarding their wayleave agreement with an electricity company. The letter should inform them about the secured payment and provide clear instructions for completing the agreement.
+
+# Input Format
+You will receive a wayleave agreement document containing:
+- Property owner names and address
+- Electricity company details
+- Agreement terms and conditions
+- Payment details
+
+# Required Output Format
+Generate a professional business letter with:
+
+1. Company Header (Single Line Format):
+   Autaway Ltd t.a Darlands Suite 2063 6-8 Revenge Road Lordswood Kent ME5 8UD
+
+2. Contact Information (Single Line):
+   E: info@darlands.co.uk W: darlands.co.uk Company No. 12185075
+
+3. Date (Current Date)
+
+4. Recipient Address:
+   - Use shorter name format (First & Last names only)
+   - Full address
+   - No extra spacing between address lines
+
+5. Reference Line:
+   "Re: Electrical Equipment on your Land – Wayleave Agreement"
+
+6. Main Content Must Include:
+   - Opening statement about secured agreement with SSE/Scottish & Southern Energy
+   - Mention of TWO copies requirement
+   - Reference to payment details using exact phrase "confirmed on the agreement"
+   - Three numbered signing instructions:
+     1) Reference to "SECOND PAGE" for first signature
+     2) Reference to "FOURTH PAGE (Title Plan)" for second signature
+     3) Return instruction with prepaid envelope reference
+
+7. Important Note:
+   - Include standard no-cost assurance paragraph
+   - Use exact wording: "Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All the monies for the wayleave will be paid to, and kept by you."
+
+8. Closing:
+   - "Yours sincerely,"
+   - Name: Paul Wakeford
+   - Title: Partner
+   - Company: DARLANDS
+
+# Style Guidelines
+- Keep formatting minimal and clean
+- Use consistent spacing throughout
+- Maintain concise, professional language
+- Do not add any extra information or explanations
+- Use exact phrases from template where provided
+
+# Critical Differences from Previous Version
+- Use simpler name format in address
+- Reference "SECOND PAGE" not "THIRD PAGE" for first signature
+- Use "SSE" or "Scottish & Southern Energy" in company references
+- Keep payment reference generic rather than specific
+- Maintain exact spacing and formatting
+
+# Example Usage
+Input: [Paste the wayleave agreement content]
+
+Expected output should exactly match the format of the provided example letter, with only the necessary details changed to match the specific agreement.
