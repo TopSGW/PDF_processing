@@ -240,12 +240,15 @@ class MainWindow(QWidget):
             # Analyze PDFs to determine which is the map
             map_pdf = None
             doc_pdf = None
+            wayleave_type = "unknown"
             
             for pdf in pdfs:
                 if PDFContent.is_map_pdf(pdf):
                     map_pdf = pdf
                 else:
                     doc_pdf = pdf
+                    # Analyze wayleave type for document PDF
+                    wayleave_type = PDFContent.analyze_wayleave_type(pdf)
                     
             if not map_pdf or not doc_pdf:
                 QMessageBox.warning(
@@ -263,10 +266,10 @@ class MainWindow(QWidget):
                 # use just the parent folder name
                 folder_path = map_pdf.parent.name
                 
-            folder_item = self.create_folder_item(str(folder_path), PDFPair(doc_pdf, map_pdf, []), False)
+            folder_item = self.create_folder_item(str(folder_path), PDFPair(doc_pdf, map_pdf, [], wayleave_type), False)
             
             # Add PDFs to folder item
-            doc_item = self.create_pdf_item(doc_pdf, "Document")
+            doc_item = self.create_pdf_item(doc_pdf, "Document", wayleave_type)
             map_item = self.create_pdf_item(map_pdf, "Map")
             folder_item.addChild(doc_item)
             folder_item.addChild(map_item)
@@ -380,7 +383,8 @@ class MainWindow(QWidget):
         item = QTreeWidgetItem()
         status = "✓" if is_processed else ""
         total_pdfs = sum(1 for pdf in [pdf_pair.document_pdf, pdf_pair.map_pdf] if pdf is not None)
-        item.setText(0, f"📁 {folder_path} ({total_pdfs} PDFs) {status}")
+        wayleave_info = f" [{pdf_pair.wayleave_type}]" if pdf_pair.wayleave_type != "unknown" else ""
+        item.setText(0, f"📁 {folder_path} ({total_pdfs} PDFs){wayleave_info} {status}")
 
         if self.selected_folder:
             folder_path_obj = Path(folder_path)
@@ -391,7 +395,8 @@ class MainWindow(QWidget):
             
             tooltip = f"Full path: {full_path}\n"
             tooltip += f"Document PDF: {'Yes' if pdf_pair.document_pdf else 'No'}\n"
-            tooltip += f"Map PDF: {'Yes' if pdf_pair.map_pdf else 'No'}"
+            tooltip += f"Map PDF: {'Yes' if pdf_pair.map_pdf else 'No'}\n"
+            tooltip += f"Wayleave Type: {pdf_pair.wayleave_type}"
             item.setToolTip(0, tooltip)
 
         if is_processed:
@@ -399,13 +404,14 @@ class MainWindow(QWidget):
         
         return item      
           
-    def create_pdf_item(self, pdf_path: Path, pdf_type: str = "") -> QTreeWidgetItem:
+    def create_pdf_item(self, pdf_path: Path, pdf_type: str = "", wayleave_type: str = "") -> QTreeWidgetItem:
         """
         Create a PDF item for the tree widget.
         
         Args:
             pdf_path: Path to the PDF file
             pdf_type: Type of PDF (Document/Map)
+            wayleave_type: Type of wayleave document (annual/15-year)
             
         Returns:
             QTreeWidgetItem for the PDF
@@ -414,13 +420,16 @@ class MainWindow(QWidget):
         
         # Set icon and format based on PDF type
         if pdf_type == "Document":
-            item.setText(0, f"📄 {pdf_path.name} (Document)")
+            wayleave_info = f" [{wayleave_type}]" if wayleave_type and wayleave_type != "unknown" else ""
+            item.setText(0, f"📄 {pdf_path.name} (Document){wayleave_info}")
             item.setForeground(0, QColor("#1976D2"))  # Blue for Document
         else:  # Map
             item.setText(0, f"🗺️ {pdf_path.name} (Map)")
             item.setForeground(0, QColor("#388E3C"))  # Green for Map
             
         item.setToolTip(0, f"Full path: {pdf_path}")
+        if wayleave_type:
+            item.setToolTip(0, f"Full path: {pdf_path}\nWayleave Type: {wayleave_type}")
         return item
             
     def handle_scan_results(self, results: List[Tuple[str, PDFPair]]) -> None:
@@ -456,7 +465,7 @@ class MainWindow(QWidget):
                     
                     # Add Document PDF if exists
                     if pdf_pair.document_pdf:
-                        doc_item = self.create_pdf_item(pdf_pair.document_pdf, "Document")
+                        doc_item = self.create_pdf_item(pdf_pair.document_pdf, "Document", pdf_pair.wayleave_type)
                         folder_item.addChild(doc_item)
                     
                     # Add Map PDF if exists

@@ -8,6 +8,7 @@ import sys
 import argparse
 
 from constants import PDF_EXTENSION, REQUIRED_PDF_COUNT, PROCESSED_FOLDER_MARKER
+from document_classifier import identify_wayleave_type
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +43,45 @@ class PDFContent:
         except Exception as e:
             logger.error(f"Error getting page count from PDF {pdf_path}: {e}")
             return 0
+
+    @staticmethod
+    def extract_text_content(pdf_path: Path) -> str:
+        """
+        Extract text content from a PDF file.
+        
+        Args:
+            pdf_path: Path to the PDF file
+            
+        Returns:
+            Extracted text content as string
+        """
+        try:
+            with fitz.open(pdf_path) as doc:
+                text = ""
+                for page in doc:
+                    text += page.get_text()
+                return text
+        except Exception as e:
+            logger.error(f"Error extracting text from PDF {pdf_path}: {e}")
+            return ""
+
+    @staticmethod
+    def analyze_wayleave_type(pdf_path: Path) -> str:
+        """
+        Analyze a PDF to determine its wayleave type (annual or 15-year).
+        
+        Args:
+            pdf_path: Path to the PDF file
+            
+        Returns:
+            String indicating the wayleave type ('annual', '15-year', or 'unknown')
+        """
+        try:
+            text_content = PDFContent.extract_text_content(pdf_path)
+            return identify_wayleave_type(text_content)
+        except Exception as e:
+            logger.error(f"Error analyzing wayleave type for PDF {pdf_path}: {e}")
+            return "unknown"
 
     @staticmethod
     def analyze_pdf_type(pdf_path: Path) -> str:
@@ -100,6 +140,7 @@ class PDFPair(NamedTuple):
     document_pdf: Optional[Path]  # The document PDF (e.g., consent, agreement)
     map_pdf: Optional[Path]      # The map PDF (e.g., layout view, site plan)
     additional_pdfs: List[Path]  # Any PDFs that couldn't be clearly classified
+    wayleave_type: str = "unknown"  # The type of wayleave document (annual, 15-year, or unknown)
 
 class PDFScanner:
     """Class responsible for scanning directories for PDF files."""
@@ -157,12 +198,13 @@ class PDFScanner:
             
             if not pdfs:
                 logger.debug(f"No PDF files found in {directory}")
-                return PDFPair(None, None, [])
+                return PDFPair(None, None, [], "unknown")
             
             # Analyze each PDF to categorize it
             map_pdf = None
             document_pdf = None
             additional_pdfs = []
+            wayleave_type = "unknown"
             
             # First pass: categorize PDFs
             for pdf in sorted(pdfs):
@@ -172,19 +214,22 @@ class PDFScanner:
                     map_pdf = pdf
                 elif pdf_type == PDFType.DOCUMENT and document_pdf is None:
                     document_pdf = pdf
+                    # Analyze wayleave type for document PDFs
+                    wayleave_type = PDFContent.analyze_wayleave_type(pdf)
                 else:
                     additional_pdfs.append(pdf)
             
             logger.info(f"Found in {directory}: "
                        f"document={document_pdf.name if document_pdf else 'None'}, "
                        f"map={map_pdf.name if map_pdf else 'None'}, "
+                       f"wayleave_type={wayleave_type}, "
                        f"additional={len(additional_pdfs)} PDFs")
             
-            return PDFPair(document_pdf, map_pdf, additional_pdfs)
+            return PDFPair(document_pdf, map_pdf, additional_pdfs, wayleave_type)
             
         except Exception as e:
             logger.error(f"Error scanning directory {directory}: {e}")
-            return PDFPair(None, None, [])
+            return PDFPair(None, None, [], "unknown")
 
     @staticmethod
     def scan_directory(root_dir: Path, current_dir: Path) -> List[Tuple[str, PDFPair]]:
@@ -288,7 +333,10 @@ def main():
         return
     
     pdf_type = PDFContent.analyze_pdf_type(pdf_path)
-    print(f"\nAnalysis Result: The PDF is classified as: {pdf_type}")
+    wayleave_type = PDFContent.analyze_wayleave_type(pdf_path)
+    print(f"\nAnalysis Result:")
+    print(f"PDF Type: {pdf_type}")
+    print(f"Wayleave Type: {wayleave_type}")
     
 if __name__ == "__main__":
     if len(sys.argv) > 1:
