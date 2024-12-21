@@ -22,7 +22,7 @@ from constants import (
     GENERATE_LETTER_ERROR, GENERATE_LETTER_SUCCESS, LETTER_SAVE_DIALOG
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
-from letter_generator import generate_letter_for_pdf, ContentError
+from letter_generator import generate_letter_for_pdf, ContentError, WayleaveLetterGenerator
 
 # Configure logging
 logging.basicConfig(
@@ -39,6 +39,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.scanner_thread: Optional[ScannerThread] = None
         self.selected_folder: Optional[Path] = None
+        self.letter_generator = WayleaveLetterGenerator()
         
         self.init_ui()
         
@@ -266,9 +267,20 @@ class MainWindow(QWidget):
                 )
                 return
                 
+            # Extract content from PDF
+            from pdf_scanner import PDFContent
+            content = PDFContent.extract_text_content(pdf_path)
+            if not content:
+                QMessageBox.critical(
+                    self,
+                    GENERATE_LETTER_ERROR,
+                    "Failed to extract content from PDF"
+                )
+                return
+            
             # Generate letter content
             try:
-                letter_content, suggested_filename = generate_letter_for_pdf(pdf_path, letter_type)
+                letter_content, suggested_filename = self.letter_generator.generate_letter(content, letter_type)
             except ContentError as e:
                 QMessageBox.critical(
                     self,
@@ -283,17 +295,19 @@ class MainWindow(QWidget):
                 self,
                 LETTER_SAVE_DIALOG,
                 str(self.selected_folder / suggested_filename),
-                "PDF files (*.pdf)"  # Changed to PDF
+                "PDF files (*.pdf)"
             )
             
             if save_path:
                 try:
-                    # Save letter content as PDF
+                    # Ensure the path has .pdf extension
                     save_path = Path(save_path)
                     if not save_path.suffix.lower() == '.pdf':
                         save_path = save_path.with_suffix('.pdf')
                     
-                    # The letter content is already saved as PDF by generate_letter_for_pdf
+                    # Create the PDF with proper formatting
+                    self.letter_generator.create_pdf_letter(letter_content, save_path)
+                    
                     QMessageBox.information(
                         self,
                         GENERATE_LETTER_SUCCESS,
