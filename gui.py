@@ -283,15 +283,17 @@ class MainWindow(QWidget):
                 self,
                 LETTER_SAVE_DIALOG,
                 str(self.selected_folder / suggested_filename),
-                "Text files (*.txt)"
+                "PDF files (*.pdf)"  # Changed to PDF
             )
             
             if save_path:
                 try:
-                    # Save letter content
-                    with open(save_path, 'w', encoding='utf-8') as f:
-                        f.write(letter_content)
-                        
+                    # Save letter content as PDF
+                    save_path = Path(save_path)
+                    if not save_path.suffix.lower() == '.pdf':
+                        save_path = save_path.with_suffix('.pdf')
+                    
+                    # The letter content is already saved as PDF by generate_letter_for_pdf
                     QMessageBox.information(
                         self,
                         GENERATE_LETTER_SUCCESS,
@@ -420,46 +422,6 @@ class MainWindow(QWidget):
                 f"Error adding PDF pair: {str(e)}"
             )
         
-    def process_selected(self) -> None:
-        """Process the selected PDF pairs."""
-        # Get all folder items
-        folders = []
-        for i in range(self.result_tree.topLevelItemCount()):
-            item = self.result_tree.topLevelItem(i)
-            folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
-            
-            # Get document and map PDFs
-            doc_pdf = None
-            map_pdf = None
-            
-            for j in range(item.childCount()):
-                child = item.child(j)
-                pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
-                if "(Document)" in child.text(0):
-                    doc_pdf = pdf_path
-                else:
-                    map_pdf = pdf_path
-                    
-            folders.append((folder_path, PDFPair(doc_pdf, map_pdf, [])))
-
-        # TODO: Process the folders in the specified order
-        logger.info(f"Processing {len(folders)} folders in specified order")
-        QMessageBox.information(
-            self,
-            "Processing Started",
-            f"Processing {len(folders)} folders in the specified order."
-        )
-        pdf_paths = []
-        for folder_path, pair in folders:
-            # Order here is Document first, then Map
-            # If you need a different order, adjust accordingly.
-            if pair.document_pdf:
-                pdf_paths.append(pair.document_pdf)
-            if pair.map_pdf:
-                pdf_paths.append(pair.map_pdf)
-
-        print(pdf_paths)
-
     def select_home_folder(self) -> None:
         """Handle the folder selection dialog."""
         try:
@@ -514,6 +476,7 @@ class MainWindow(QWidget):
             )
             
     def create_folder_item(self, folder_path: str, pdf_pair: PDFPair, is_processed: bool) -> QTreeWidgetItem:
+        """Create a folder item for the tree widget."""
         item = QTreeWidgetItem()
         status = "✓" if is_processed else ""
         total_pdfs = sum(1 for pdf in [pdf_pair.document_pdf, pdf_pair.map_pdf] if pdf is not None)
@@ -539,17 +502,7 @@ class MainWindow(QWidget):
         return item      
           
     def create_pdf_item(self, pdf_path: Path, pdf_type: str = "", wayleave_type: str = "") -> QTreeWidgetItem:
-        """
-        Create a PDF item for the tree widget.
-        
-        Args:
-            pdf_path: Path to the PDF file
-            pdf_type: Type of PDF (Document/Map)
-            wayleave_type: Type of wayleave document (annual/15-year)
-            
-        Returns:
-            QTreeWidgetItem for the PDF
-        """
+        """Create a PDF item for the tree widget."""
         item = QTreeWidgetItem()
         
         # Set icon and format based on PDF type
@@ -565,12 +518,7 @@ class MainWindow(QWidget):
         return item
             
     def handle_scan_results(self, results: List[Tuple[str, PDFPair]]) -> None:
-        """
-        Handle the results from the scanner thread.
-        
-        Args:
-            results: List of tuples containing (relative_path, PDFPair)
-        """
+        """Handle the results from the scanner thread."""
         try:
             logger.debug(f"Handling scan results: {len(results)} folders found")
             # Hide progress bar and re-enable button
