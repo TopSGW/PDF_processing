@@ -17,9 +17,12 @@ from constants import (
     NO_RESULTS_MESSAGE, FOLDER_DIALOG_TITLE, PROCESSED_FOLDER_MARKER,
     MOVE_UP_TEXT, MOVE_DOWN_TEXT, REMOVE_PAIR_TEXT, ADD_PAIR_TEXT,
     PROCESS_TEXT, ADD_PDF_DIALOG_TITLE, REMOVE_CONFIRM_TITLE,
-    REMOVE_CONFIRM_TEXT, PDF_EXTENSION, MERGE_AND_COMPRESS_PDFS
+    REMOVE_CONFIRM_TEXT, PDF_EXTENSION, MERGE_AND_COMPRESS_PDFS,
+    GENERATE_ANNUAL_LETTER, GENERATE_15_YEAR_LETTER,
+    GENERATE_LETTER_ERROR, GENERATE_LETTER_SUCCESS, LETTER_SAVE_DIALOG
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
+from letter_generator import generate_letter_for_pdf, ContentError
 
 # Configure logging
 logging.basicConfig(
@@ -65,6 +68,21 @@ class MainWindow(QWidget):
         self.create_control_buttons(content_layout)
         
         main_layout.addLayout(content_layout)
+        
+        # Create letter generation buttons
+        letter_buttons_layout = QHBoxLayout()
+        
+        self.annual_letter_btn = QPushButton(GENERATE_ANNUAL_LETTER)
+        self.annual_letter_btn.setEnabled(False)
+        self.annual_letter_btn.clicked.connect(lambda: self.generate_letter("annual"))
+        letter_buttons_layout.addWidget(self.annual_letter_btn)
+        
+        self.fifteen_year_letter_btn = QPushButton(GENERATE_15_YEAR_LETTER)
+        self.fifteen_year_letter_btn.setEnabled(False)
+        self.fifteen_year_letter_btn.clicked.connect(lambda: self.generate_letter("15-year"))
+        letter_buttons_layout.addWidget(self.fifteen_year_letter_btn)
+        
+        main_layout.addLayout(letter_buttons_layout)
         
         # Add process button at bottom
         self.merge_btn = QPushButton(MERGE_AND_COMPRESS_PDFS)
@@ -172,12 +190,128 @@ class MainWindow(QWidget):
         if is_folder:
             current_index = self.result_tree.indexOfTopLevelItem(selected[0])
         
+        # Enable/disable standard buttons
         self.move_up_btn.setEnabled(is_folder and current_index > 0)
         self.move_down_btn.setEnabled(is_folder and current_index < self.result_tree.topLevelItemCount() - 1)
         self.remove_btn.setEnabled(is_folder)
         self.add_btn.setEnabled(bool(self.selected_folder))
         self.merge_btn.setEnabled(self.result_tree.topLevelItemCount() > 0)
         
+        # Enable/disable letter generation buttons based on document selection
+        has_document = False
+        wayleave_type = "unknown"
+        if has_selection:
+            selected_item = selected[0]
+            if selected_item.childCount() > 0:  # If it's a folder
+                for i in range(selected_item.childCount()):
+                    child = selected_item.child(i)
+                    if "(Document)" in child.text(0):
+                        has_document = True
+                        # Extract wayleave type from tooltip
+                        tooltip = child.toolTip(0)
+                        if "Wayleave Type: " in tooltip:
+                            wayleave_type = tooltip.split("Wayleave Type: ")[1]
+                        break
+            elif "(Document)" in selected_item.text(0):  # If it's a document
+                has_document = True
+                # Extract wayleave type from tooltip
+                tooltip = selected_item.toolTip(0)
+                if "Wayleave Type: " in tooltip:
+                    wayleave_type = tooltip.split("Wayleave Type: ")[1]
+        
+        # Enable appropriate letter button based on wayleave type
+        self.annual_letter_btn.setEnabled(has_document and (wayleave_type == "annual" or wayleave_type == "unknown"))
+        self.fifteen_year_letter_btn.setEnabled(has_document and (wayleave_type == "15-year" or wayleave_type == "unknown"))
+        
+    def get_selected_document_pdf(self) -> Optional[Path]:
+        """Get the selected document PDF path."""
+        selected = self.result_tree.selectedItems()
+        if not selected:
+            return None
+            
+        selected_item = selected[0]
+        if selected_item.childCount() > 0:  # If folder is selected
+            for i in range(selected_item.childCount()):
+                child = selected_item.child(i)
+                if "(Document)" in child.text(0):
+                    return Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
+        elif "(Document)" in selected_item.text(0):  # If document is selected
+            return Path(selected_item.toolTip(0).replace("Full path: ", "").split("\n")[0])
+            
+        return None
+        
+    def generate_letter(self, letter_type: str) -> None:
+        """
+        Generate a letter for the selected document.
+        
+        Args:
+            letter_type: Type of letter to generate ("annual" or "15-year")
+        """
+        try:
+            # Get selected document PDF
+            pdf_path = self.get_selected_document_pdf()
+            if not pdf_path:
+                QMessageBox.warning(
+                    self,
+                    "No Document Selected",
+                    "Please select a document PDF to generate a letter."
+                )
+                return
+                
+            if not pdf_path.exists():
+                QMessageBox.critical(
+                    self,
+                    GENERATE_LETTER_ERROR,
+                    f"PDF file not found: {pdf_path}"
+                )
+                return
+                
+            # Generate letter content
+            try:
+                letter_content, suggested_filename = generate_letter_for_pdf(pdf_path, letter_type)
+            except ContentError as e:
+                QMessageBox.critical(
+                    self,
+                    GENERATE_LETTER_ERROR,
+                    f"Error extracting information from PDF: {str(e)}\n\n"
+                    f"This might be because the selected PDF is not a valid {letter_type} wayleave document."
+                )
+                return
+                
+            # Get save location
+            save_path, _ = QFileDialog.getSaveFileName(
+                self,
+                LETTER_SAVE_DIALOG,
+                str(self.selected_folder / suggested_filename),
+                "Text files (*.txt)"
+            )
+            
+            if save_path:
+                try:
+                    # Save letter content
+                    with open(save_path, 'w', encoding='utf-8') as f:
+                        f.write(letter_content)
+                        
+                    QMessageBox.information(
+                        self,
+                        GENERATE_LETTER_SUCCESS,
+                        f"Letter has been generated and saved to:\n{save_path}"
+                    )
+                except Exception as e:
+                    QMessageBox.critical(
+                        self,
+                        GENERATE_LETTER_ERROR,
+                        f"Error saving letter: {str(e)}"
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error generating letter: {e}")
+            QMessageBox.critical(
+                self,
+                GENERATE_LETTER_ERROR,
+                f"Error generating letter: {str(e)}"
+            )
+            
     def move_item_up(self) -> None:
         """Move the selected folder item up in the list."""
         item = self.result_tree.selectedItems()[0]
@@ -300,7 +434,7 @@ class MainWindow(QWidget):
             
             for j in range(item.childCount()):
                 child = item.child(j)
-                pdf_path = Path(child.toolTip(0).replace("Full path: ", ""))
+                pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
                 if "(Document)" in child.text(0):
                     doc_pdf = pdf_path
                 else:
@@ -427,9 +561,7 @@ class MainWindow(QWidget):
             item.setText(0, f"🗺️ {pdf_path.name} (Map)")
             item.setForeground(0, QColor("#388E3C"))  # Green for Map
             
-        item.setToolTip(0, f"Full path: {pdf_path}")
-        if wayleave_type:
-            item.setToolTip(0, f"Full path: {pdf_path}\nWayleave Type: {wayleave_type}")
+        item.setToolTip(0, f"Full path: {pdf_path}\nWayleave Type: {wayleave_type}")
         return item
             
     def handle_scan_results(self, results: List[Tuple[str, PDFPair]]) -> None:
@@ -502,7 +634,7 @@ class MainWindow(QWidget):
             
             for j in range(item.childCount()):
                 child = item.child(j)
-                pdf_path = Path(child.toolTip(0).replace("Full path: ", ""))
+                pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
                 if "(Document)" in child.text(0):
                     doc_pdf = pdf_path
                 else:
