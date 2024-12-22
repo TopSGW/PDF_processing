@@ -270,6 +270,7 @@ class MainWindow(QWidget):
             # Extract content from PDF
             from pdf_scanner import PDFContent
             content = PDFContent.extract_text_content(pdf_path)
+            page_count = PDFContent.get_page_count(pdf_path)
             if not content:
                 QMessageBox.critical(
                     self,
@@ -280,7 +281,7 @@ class MainWindow(QWidget):
             
             # Generate letter content
             try:
-                letter_content, suggested_filename = self.letter_generator.generate_letter(content, letter_type)
+                letter_content, suggested_filename = self.letter_generator.generate_letter(content, letter_type, page_count=page_count)
             except ContentError as e:
                 QMessageBox.critical(
                     self,

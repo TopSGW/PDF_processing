@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import logging
 import fitz  # PyMuPDF
+from num2words import num2words
 
 # Configure logging
 logging.basicConfig(
@@ -47,7 +48,7 @@ Payment'.
 To help you complete the agreement, please follow these steps for both copies of the wayleave
 agreements:
 
-    1) All homeowners must sign on the SECOND PAGE
+    1) All homeowners must sign on the {} PAGE
     2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
     3) Send both copies back to us in the prepaid envelope provided
 
@@ -87,7 +88,7 @@ Payment'. This is a one-time payment covering the full 15-year term.
 To help you complete the agreement, please follow these steps for both copies of the wayleave
 agreements:
 
-    1) All homeowners must sign on the SECOND PAGE
+    1) All homeowners must sign on the {} PAGE
     2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
     3) Send both copies back to us in the prepaid envelope provided
 
@@ -411,7 +412,7 @@ DARLANDS"""
             logger.error(f"Error generating filename: {e}")
             raise ContentError(f"Error generating filename: {str(e)}")
 
-    def generate_letter(self, content: str, letter_type: str = "annual") -> tuple:
+    def generate_letter(self, content: str, letter_type: str = "annual", page_count: int = 1) -> tuple:
         """Generate a wayleave letter based on document content."""
         try:
             logger.info(f"Generating {letter_type} letter")
@@ -432,10 +433,15 @@ DARLANDS"""
             
             current_date = datetime.now().strftime("%d %B %Y")
             
+            page_counts = (page_count - 1) if letter_type == "annual" else page_count
+
+            sign_page = num2words(page_counts, to="ordinal").upper()
+
             letter = template.format(
                 current_date,
                 f"{header_names}\n{formatted_address}",
-                salutation_names
+                salutation_names,
+                sign_page
             )
             
             filename = self.generate_filename(info['address'])
@@ -458,13 +464,18 @@ def generate_letter_for_pdf(pdf_path: Path, letter_type: str = "annual") -> tupl
         from pdf_scanner import PDFContent
         
         content = PDFContent.extract_text_content(pdf_path)
+        page_count = PDFContent.get_page_count(pdf_path=pdf_path)
+
+        logger.info(f"ddddddddddddddd : {page_count}")
+
         if not content:
             raise ContentError("Failed to extract content from PDF")
             
         logger.debug(f"Extracted content preview: {content[:200]}")
         
         generator = WayleaveLetterGenerator()
-        letter, filename = generator.generate_letter(content, letter_type)
+
+        letter, filename = generator.generate_letter(content, letter_type, page_count=page_count)
         
         # Create PDF version of the letter
         output_path = pdf_path.parent / filename
