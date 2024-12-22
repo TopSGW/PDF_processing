@@ -73,6 +73,13 @@ class MainWindow(QWidget):
         # Create letter generation buttons
         letter_buttons_layout = QHBoxLayout()
         
+        # Create Letters button for all PDFs
+        self.create_all_letters_btn = QPushButton("Create Letters")
+        self.create_all_letters_btn.setEnabled(False)
+        self.create_all_letters_btn.clicked.connect(self.generate_all_letters)
+        letter_buttons_layout.addWidget(self.create_all_letters_btn)
+        
+        # Individual letter generation buttons
         self.annual_letter_btn = QPushButton(GENERATE_ANNUAL_LETTER)
         self.annual_letter_btn.setEnabled(False)
         self.annual_letter_btn.clicked.connect(lambda: self.generate_letter("annual"))
@@ -92,7 +99,78 @@ class MainWindow(QWidget):
         main_layout.addWidget(self.merge_btn)
         
         self.setLayout(main_layout)
-        
+
+    def generate_all_letters(self) -> None:
+        """Generate letters for all PDFs in their respective sub-folders."""
+        try:
+            success_count = 0
+            error_count = 0
+            error_messages = []
+
+            # Iterate through all folders
+            for i in range(self.result_tree.topLevelItemCount()):
+                folder_item = self.result_tree.topLevelItem(i)
+                
+                # Find document PDF in this folder
+                doc_pdf = None
+                wayleave_type = None
+                
+                for j in range(folder_item.childCount()):
+                    child = folder_item.child(j)
+                    if "(Document)" in child.text(0):
+                        doc_pdf = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
+                        # Get wayleave type from tooltip
+                        tooltip = child.toolTip(0)
+                        if "Wayleave Type: " in tooltip:
+                            wayleave_type = tooltip.split("Wayleave Type: ")[1]
+                        break
+                
+                if doc_pdf and doc_pdf.exists():
+                    try:
+                        # Extract content from PDF
+                        content = PDFContent.extract_text_content(doc_pdf)
+                        page_count = PDFContent.get_page_count(doc_pdf)
+                        
+                        if content:
+                            # Determine letter type based on the document content
+                            letter_type = wayleave_type if wayleave_type in ["annual", "15-year"] else "annual"
+                            
+                            # Generate letter content
+                            letter_content, suggested_filename = self.letter_generator.generate_letter(
+                                content, letter_type, page_count=page_count
+                            )
+                            
+                            # Save in the same folder as the document PDF
+                            save_path = doc_pdf.parent / suggested_filename
+                            self.letter_generator.create_pdf_letter(letter_content, save_path)
+                            success_count += 1
+                            
+                    except Exception as e:
+                        error_count += 1
+                        error_messages.append(f"Error processing {doc_pdf.name}: {str(e)}")
+            
+            # Show summary message
+            message = f"Letter Generation Complete\n\n"
+            message += f"Successfully generated: {success_count} letters\n"
+            if error_count > 0:
+                message += f"Errors encountered: {error_count}\n\n"
+                message += "Error Details:\n" + "\n".join(error_messages)
+            
+            QMessageBox.information(
+                self,
+                "Generate Letters Results",
+                message
+            )
+            
+        except Exception as e:
+            logger.error(f"Error generating letters: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Error generating letters: {str(e)}"
+            )
+
+    # [Previous methods remain unchanged...]
     def create_header_section(self, parent_layout: QVBoxLayout) -> None:
         """Create the header section of the UI."""
         header_frame = QFrame()
@@ -198,6 +276,9 @@ class MainWindow(QWidget):
         self.add_btn.setEnabled(bool(self.selected_folder))
         self.merge_btn.setEnabled(self.result_tree.topLevelItemCount() > 0)
         
+        # Enable Create Letters button if there are any items
+        self.create_all_letters_btn.setEnabled(self.result_tree.topLevelItemCount() > 0)
+        
         # Enable/disable letter generation buttons based on document selection
         has_document = False
         wayleave_type = "unknown"
@@ -291,35 +372,24 @@ class MainWindow(QWidget):
                 )
                 return
                 
-            # Get save location
-            save_path, _ = QFileDialog.getSaveFileName(
-                self,
-                LETTER_SAVE_DIALOG,
-                str(self.selected_folder / suggested_filename),
-                "PDF files (*.pdf)"
-            )
-            
-            if save_path:
-                try:
-                    # Ensure the path has .pdf extension
-                    save_path = Path(save_path)
-                    if not save_path.suffix.lower() == '.pdf':
-                        save_path = save_path.with_suffix('.pdf')
-                    
-                    # Create the PDF with proper formatting
-                    self.letter_generator.create_pdf_letter(letter_content, save_path)
-                    
-                    QMessageBox.information(
-                        self,
-                        GENERATE_LETTER_SUCCESS,
-                        f"Letter has been generated and saved to:\n{save_path}"
-                    )
-                except Exception as e:
-                    QMessageBox.critical(
-                        self,
-                        GENERATE_LETTER_ERROR,
-                        f"Error saving letter: {str(e)}"
-                    )
+            try:
+                # Save the letter in the same folder as the document PDF
+                save_path = pdf_path.parent / suggested_filename
+                
+                # Create the PDF with proper formatting
+                self.letter_generator.create_pdf_letter(letter_content, save_path)
+                
+                QMessageBox.information(
+                    self,
+                    GENERATE_LETTER_SUCCESS,
+                    f"Letter has been generated and saved to:\n{save_path}"
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    GENERATE_LETTER_ERROR,
+                    f"Error saving letter: {str(e)}"
+                )
                 
         except Exception as e:
             logger.error(f"Error generating letter: {e}")
