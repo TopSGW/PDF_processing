@@ -107,6 +107,8 @@ class MainWindow(QWidget):
             error_count = 0
             error_messages = []
 
+            generated_letters = []
+
             # Iterate through all folders
             for i in range(self.result_tree.topLevelItemCount()):
                 folder_item = self.result_tree.topLevelItem(i)
@@ -144,11 +146,27 @@ class MainWindow(QWidget):
                             save_path = doc_pdf.parent / suggested_filename
                             self.letter_generator.create_pdf_letter(letter_content, save_path)
                             success_count += 1
+                            generated_letters.append(save_path)
                             
                     except Exception as e:
                         error_count += 1
                         error_messages.append(f"Error processing {doc_pdf.name}: {str(e)}")
             
+            if generated_letters:
+                try:
+                    merged_path = self.selected_folder / "Print 2.pdf"
+                    merged_doc = fitz.open()
+                    
+                    for letter_pdf in generated_letters:
+                        with fitz.open(letter_pdf) as src_doc:
+                            merged_doc.insert_pdf(src_doc)
+                    
+                    # optionally flatten / deflate if needed
+                    merged_doc.save(merged_path, deflate=True, garbage=4)
+                    merged_doc.close()
+                except Exception as merge_err:
+                    logger.error(f"Error merging final PDF: {merge_err}")
+                    error_messages.append(f"Error merging final PDF: {merge_err}")
             # Show summary message
             message = f"Letter Generation Complete\n\n"
             message += f"Successfully generated: {success_count} letters\n"
