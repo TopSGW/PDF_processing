@@ -22,12 +22,10 @@ class WayleaveLetterGenerator:
     
     def __init__(self):
         """Initialize the letter generator with templates."""
-        self.company_header = """Autaway Ltd t.a Darlands   Suite 2063 6-8 Revenge Road Lordswood Kent ME5 8UD
+        self.company_footer = """Autaway Ltd t.a Darlands   Suite 2063 6-8 Revenge Road Lordswood Kent ME5 8UD
 E: info@darlands.co.uk     W: darlands.co.uk     Company No. 12185075"""
         
         self.annual_letter_template = """{}
-
-{}
 
 {}
 
@@ -48,9 +46,10 @@ Payment'.
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave
 agreements:
-1) All homeowners must sign on the SECOND PAGE
-2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
-3) Send both copies back to us in the prepaid envelope provided
+
+    1) All homeowners must sign on the SECOND PAGE
+    2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
+    3) Send both copies back to us in the prepaid envelope provided
 
 Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All
 the monies for the wayleave will be paid to, and kept by you.
@@ -58,13 +57,15 @@ the monies for the wayleave will be paid to, and kept by you.
 Yours sincerely,
 
 
+
+
+
+
 Paul Wakeford
 Partner
 DARLANDS"""
 
         self.fifteen_year_letter_template = """{}
-
-{}
 
 {}
 
@@ -85,9 +86,10 @@ Payment'. This is a one-time payment covering the full 15-year term.
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave
 agreements:
-1) All homeowners must sign on the SECOND PAGE
-2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
-3) Send both copies back to us in the prepaid envelope provided
+
+    1) All homeowners must sign on the SECOND PAGE
+    2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
+    3) Send both copies back to us in the prepaid envelope provided
 
 Please note that:
 - This is a 15-year agreement with a one-time payment
@@ -96,6 +98,10 @@ Please note that:
 - After the 15-year term, the agreement will need to be renewed
 
 Yours sincerely,
+
+
+
+
 
 
 Paul Wakeford
@@ -125,7 +131,7 @@ DARLANDS"""
             signature_path = Path("asset/sign.png")
             
             if logo_path.exists():
-                logo_rect = fitz.Rect(left_margin, top_margin - 50, 200, top_margin - 10)
+                logo_rect = fitz.Rect(left_margin, top_margin - 30, 200, top_margin + 10)
                 page.insert_image(logo_rect, filename=str(logo_path))
             
             # Calculate text width
@@ -135,7 +141,7 @@ DARLANDS"""
             lines = letter_content.split('\n')
             
             # Current y position for text
-            y_pos = top_margin
+            y_pos = top_margin + 50
             
             # Font sizes
             header_font_size = 11
@@ -150,7 +156,6 @@ DARLANDS"""
                     y_pos += body_font_size * line_spacing
                     continue
                 
-                # Determine font size based on content
                 if "Autaway Ltd" in line:
                     font_size = header_font_size
                     font = "Helvetica"
@@ -172,10 +177,26 @@ DARLANDS"""
             if signature_path.exists():
                 sig_height = 50
                 sig_width = 100
-                sig_y = y_pos - 30  # Position above the name
-                sig_rect = fitz.Rect(left_margin, sig_y, left_margin + sig_width, sig_y + sig_height)
+                sig_y = y_pos - 110  # Position above the name
+                sig_rect = fitz.Rect(left_margin - 30, sig_y, left_margin + sig_width, sig_y + sig_height)
                 page.insert_image(sig_rect, filename=str(signature_path))
             
+            footer_lines = self.company_footer.split('\n')
+            footer_y = page.rect.height - (len(footer_lines) * font_size * line_spacing)
+            center_x = page.rect.width / 2
+
+            for footer_line in footer_lines:
+                # Calculate the width of the text to center it
+                text_width = len(footer_line) * font_size * 0.5  # Approximate width
+                x_pos = center_x - (text_width / 2)
+                
+                page.insert_text(
+                    point=(x_pos, footer_y),
+                    text=footer_line,
+                    fontname="Helvetica",
+                    fontsize=font_size
+                )
+                footer_y += font_size * line_spacing
             # Save the PDF
             doc.save(output_path, deflate=True, garbage=4)
             doc.close()
@@ -412,7 +433,6 @@ DARLANDS"""
             current_date = datetime.now().strftime("%d %B %Y")
             
             letter = template.format(
-                self.company_header,
                 current_date,
                 f"{header_names}\n{formatted_address}",
                 salutation_names
