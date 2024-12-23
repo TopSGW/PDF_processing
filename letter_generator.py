@@ -11,6 +11,7 @@ from docx.shared import Inches, Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_ORIENTATION
 from docx2pdf import convert
+from constants import get_asset_path
 
 # Configure logging
 logging.basicConfig(
@@ -130,7 +131,7 @@ DARLANDS"""
             paragraph_format.space_after = Pt(0)  # or Pt(0) if you want even less
 
             # 3) Header with optional logo
-            logo_path = Path("asset/derland.png")
+            logo_path = Path(get_asset_path("asset/derland.png"))
             if logo_path.exists():
                 header = section.header
                 header.is_linked_to_previous = False
@@ -158,7 +159,7 @@ DARLANDS"""
 
                 if sign_cnt == 2:
                     # 5) Optional signature
-                    signature_path = Path("asset/sign.png")
+                    signature_path = Path(get_asset_path("asset/sign.png"))
                     if signature_path.exists():
                         sig_paragraph = doc.add_paragraph()
                         sig_run = sig_paragraph.add_run()

@@ -1,5 +1,7 @@
 """Constants used throughout the application."""
 from typing import Final
+import os
+import sys
 
 # File extensions
 PDF_EXTENSION: Final[str] = '.pdf'
@@ -37,3 +39,13 @@ REMOVE_CONFIRM_TITLE: Final[str] = "Confirm Removal"
 REMOVE_CONFIRM_TEXT: Final[str] = "Are you sure you want to remove this PDF pair?"
 
 MERGE_AND_COMPRESS_PDFS: Final[str] = "Print"
+
+def get_asset_path(relative_path):
+    """Get absolute path to asset, works both for development and PyInstaller."""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
