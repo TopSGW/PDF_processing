@@ -10,6 +10,7 @@ from docx import Document
 from docx.shared import Inches, Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_ORIENTATION
+from docx2pdf import convert
 
 # Configure logging
 logging.basicConfig(
@@ -188,100 +189,24 @@ DARLANDS"""
             raise ContentError(f"Error creating Word DOCX: {str(e)}")
 
     def create_pdf_letter(self, letter_content: str, output_path: Path) -> None:
-        """
-        Create a PDF letter with proper formatting.
-        
-        Args:
-            letter_content: The content of the letter
-            output_path: Path where to save the PDF
-        """
-        # Create a new PDF document
-        doc = fitz.open()
-        page = doc.new_page(width=595, height=842)  # A4 size in points
-        
-        # Set margins (in points, 1 inch = 72 points)
-        left_margin = 72
-        top_margin = 72
-        right_margin = 72
-        
-        # Load logo and signature
         try:
-            logo_path = Path("asset/derland.png")
-            signature_path = Path("asset/sign.png")
+            # Create a temporary DOCX file
+            docx_path = output_path.with_suffix('.docx')
             
-            if logo_path.exists():
-                logo_rect = fitz.Rect(left_margin, top_margin - 30, 200, top_margin + 10)
-                page.insert_image(logo_rect, filename=str(logo_path))
+            # Create the Word document
+            self.create_word_letter(letter_content, docx_path)
             
-            # Calculate text width
-            text_width = page.rect.width - left_margin - right_margin
+            # Convert DOCX to PDF
+            convert(str(docx_path), str(output_path))
             
-            # Split content into lines
-            lines = letter_content.split('\n')
-            
-            # Current y position for text
-            y_pos = top_margin + 50
-            
-            # Font sizes
-            header_font_size = 11
-            body_font_size = 11
-            
-            # Line spacing
-            line_spacing = 1.15
-            
-            for line in lines:
-                if not line.strip():
-                    # Empty line - add spacing
-                    y_pos += body_font_size * line_spacing
-                    continue
+            # Clean up the temporary DOCX file
+            if docx_path.exists():
+                docx_path.unlink()
                 
-                if "Autaway Ltd" in line:
-                    font_size = header_font_size
-                    font = "Helvetica"
-                else:
-                    font_size = body_font_size
-                    font = "Helvetica"
-                
-                # Insert text
-                page.insert_text(
-                    point=(left_margin, y_pos),
-                    text=line,
-                    fontname=font,
-                    fontsize=font_size
-                )
-                
-                y_pos += font_size * line_spacing
-            
-            # Add signature at the bottom
-            if signature_path.exists():
-                sig_height = 50
-                sig_width = 100
-                sig_y = y_pos - 110  # Position above the name
-                sig_rect = fitz.Rect(left_margin - 30, sig_y, left_margin + sig_width, sig_y + sig_height)
-                page.insert_image(sig_rect, filename=str(signature_path))
-            
-            footer_lines = self.company_footer.split('\n')
-            footer_y = page.rect.height - (len(footer_lines) * font_size * line_spacing)
-            center_x = page.rect.width / 2
-
-            for footer_line in footer_lines:
-                # Calculate the width of the text to center it
-                text_width = len(footer_line) * font_size * 0.5  # Approximate width
-                x_pos = center_x - (text_width / 2)
-                
-                page.insert_text(
-                    point=(x_pos, footer_y),
-                    text=footer_line,
-                    fontname="Helvetica",
-                    fontsize=font_size
-                )
-                footer_y += font_size * line_spacing
-            # Save the PDF
-            doc.save(output_path, deflate=True, garbage=4)
-            doc.close()
-            
         except Exception as e:
-            logger.error(f"Error creating PDF: {e}")
+            # Clean up temporary file if it exists
+            if 'docx_path' in locals() and docx_path.exists():
+                docx_path.unlink()
             raise ContentError(f"Error creating PDF: {str(e)}")
     
     def extract_names_and_address_annual(self, content: str) -> dict:
