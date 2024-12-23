@@ -126,7 +126,7 @@ DARLANDS"""
             paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
             # Optionally reduce or remove extra space before/after each paragraph:
             paragraph_format.space_before = Pt(0)
-            paragraph_format.space_after = Pt(3)  # or Pt(0) if you want even less
+            paragraph_format.space_after = Pt(0)  # or Pt(0) if you want even less
 
             # 3) Header with optional logo
             logo_path = Path("asset/derland.png")
@@ -140,18 +140,33 @@ DARLANDS"""
                 header_run.add_picture(str(logo_path), width=Inches(2))
 
             # 4) Letter content, line by line
+            doc.add_paragraph("")
+            doc.add_paragraph("")
+            doc.add_paragraph("")
+            doc.add_paragraph("")
             lines = letter_content.splitlines()
+            sign_flg = False
+            sign_cnt = 0
             for line in lines:
                 # Each line becomes its own paragraph, including blank ones
-                doc.add_paragraph(line)
+                if sign_flg == True:
+                    sign_cnt = sign_cnt + 1
 
-            # 5) Optional signature
-            signature_path = Path("asset/sign.png")
-            if signature_path.exists():
-                doc.add_paragraph("")
-                sig_paragraph = doc.add_paragraph()
-                sig_run = sig_paragraph.add_run()
-                sig_run.add_picture(str(signature_path), width=Inches(1.4))
+                if "Yours sincerely," in line:
+                    sign_flg = True
+
+                if sign_cnt == 2:
+                    # 5) Optional signature
+                    signature_path = Path("asset/sign.png")
+                    if signature_path.exists():
+                        sig_paragraph = doc.add_paragraph()
+                        sig_run = sig_paragraph.add_run()
+                        sig_run.add_picture(str(signature_path), width=Inches(1))
+
+                if sign_cnt >=3 and sign_cnt < 6:
+                    logger.info("empty line handle")
+                else: 
+                    doc.add_paragraph(line)
 
             # 6) Footer text
             footer = section.footer
