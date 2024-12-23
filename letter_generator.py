@@ -387,7 +387,8 @@ DARLANDS"""
             logger.debug(content)
             logger.debug("-" * 80)
             
-            pattern = r'\(1\)\s*(.*?)\s+of\s+([^,]+),\s*([^,]+),\s*([^,]+)\s+([A-Z0-9\s]+)'
+            # Pattern to extract names and house_and_road
+            pattern = r'\(1\)\s*(.*?)\s+of\s*(.*?)\s*(?=,\s*|\))'
             match = re.search(pattern, content, re.DOTALL)
             
             if not match:
@@ -397,20 +398,37 @@ DARLANDS"""
             
             names = match.group(1).strip()
             house_and_road = match.group(2).strip()
-            city = match.group(3).strip()
-            county = match.group(4).strip()
-            postcode = match.group(5).strip()
+            
+            # Extract city, county and postcode
+            address_pattern = r',\s*([^,]+),\s*([^,]+)\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'
+            address_match = re.search(address_pattern, content)
+            
+            if not address_match:
+                fallback_pattern = r',\s*([^,]+),\s*([^,]+)\s+(.+?)(?:\s*$|\))'
+                address_match = re.search(fallback_pattern, content)
+                if not address_match:
+                    raise ContentError("Could not find complete address details")
+                
+            city = address_match.group(1).strip()
+            county = address_match.group(2).strip()
+            postcode = address_match.group(3).strip()
             
             logger.debug(f"Found names: {names}")
             logger.debug(f"Found address components: {house_and_road}, {city}, {county}, {postcode}")
             
             names = re.sub(r'\s+', ' ', names)
             
+            # Split house_and_road into components for backward compatibility
+            house_parts = house_and_road.split(' ', 1)
+            house = house_parts[0]
+            road = house_parts[1] if len(house_parts) > 1 else ''
+            
             result = {
                 'full_names': names,
                 'address': {
-                    'house': house_and_road,
-                    'road': '',
+                    'house': house_and_road,  # Keep 'house' for backward compatibility
+                    'road': road,    # Keep 'road' for backward compatibility
+                    'house_and_road': house_and_road,  # New combined format
                     'city': city,
                     'county': county,
                     'postcode': postcode
