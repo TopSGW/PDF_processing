@@ -78,18 +78,7 @@ class MainWindow(QWidget):
         self.create_all_letters_btn.setEnabled(False)
         self.create_all_letters_btn.clicked.connect(self.generate_all_letters)
         letter_buttons_layout.addWidget(self.create_all_letters_btn)
-        
-        # Individual letter generation buttons
-        self.annual_letter_btn = QPushButton(GENERATE_ANNUAL_LETTER)
-        self.annual_letter_btn.setEnabled(False)
-        self.annual_letter_btn.clicked.connect(lambda: self.generate_letter("annual"))
-        letter_buttons_layout.addWidget(self.annual_letter_btn)
-        
-        self.fifteen_year_letter_btn = QPushButton(GENERATE_15_YEAR_LETTER)
-        self.fifteen_year_letter_btn.setEnabled(False)
-        self.fifteen_year_letter_btn.clicked.connect(lambda: self.generate_letter("15-year"))
-        letter_buttons_layout.addWidget(self.fifteen_year_letter_btn)
-        
+                
         main_layout.addLayout(letter_buttons_layout)
         
         # Add process button at bottom
@@ -325,8 +314,8 @@ class MainWindow(QWidget):
                     wayleave_type = tooltip.split("Wayleave Type: ")[1]
         
         # Enable appropriate letter button based on wayleave type
-        self.annual_letter_btn.setEnabled(has_document and (wayleave_type == "annual" or wayleave_type == "unknown"))
-        self.fifteen_year_letter_btn.setEnabled(has_document and (wayleave_type == "15-year" or wayleave_type == "unknown"))
+        # self.annual_letter_btn.setEnabled(has_document and (wayleave_type == "annual" or wayleave_type == "unknown"))
+        # self.fifteen_year_letter_btn.setEnabled(has_document and (wayleave_type == "15-year" or wayleave_type == "unknown"))
         
     def get_selected_document_pdf(self) -> Optional[Path]:
         """Get the selected document PDF path."""
@@ -344,84 +333,7 @@ class MainWindow(QWidget):
             return Path(selected_item.toolTip(0).replace("Full path: ", "").split("\n")[0])
             
         return None
-        
-    def generate_letter(self, letter_type: str) -> None:
-        """
-        Generate a letter for the selected document.
-        
-        Args:
-            letter_type: Type of letter to generate ("annual" or "15-year")
-        """
-        try:
-            # Get selected document PDF
-            pdf_path = self.get_selected_document_pdf()
-            if not pdf_path:
-                QMessageBox.warning(
-                    self,
-                    "No Document Selected",
-                    "Please select a document PDF to generate a letter."
-                )
-                return
-                
-            if not pdf_path.exists():
-                QMessageBox.critical(
-                    self,
-                    GENERATE_LETTER_ERROR,
-                    f"PDF file not found: {pdf_path}"
-                )
-                return
-                
-            # Extract content from PDF
-            from pdf_scanner import PDFContent
-            content = PDFContent.extract_text_content(pdf_path)
-            page_count = PDFContent.get_page_count(pdf_path)
-            if not content:
-                QMessageBox.critical(
-                    self,
-                    GENERATE_LETTER_ERROR,
-                    "Failed to extract content from PDF"
-                )
-                return
-            
-            # Generate letter content
-            try:
-                letter_content, suggested_filename = self.letter_generator.generate_letter(content, letter_type, page_count=page_count)
-            except ContentError as e:
-                QMessageBox.critical(
-                    self,
-                    GENERATE_LETTER_ERROR,
-                    f"Error extracting information from PDF: {str(e)}\n\n"
-                    f"This might be because the selected PDF is not a valid {letter_type} wayleave document."
-                )
-                return
-                
-            try:
-                # Save the letter in the same folder as the document PDF
-                save_path = pdf_path.parent / suggested_filename
-                
-                # Create the PDF with proper formatting
-                self.letter_generator.create_pdf_letter(letter_content, save_path)
-                
-                QMessageBox.information(
-                    self,
-                    GENERATE_LETTER_SUCCESS,
-                    f"Letter has been generated and saved to:\n{save_path}"
-                )
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    GENERATE_LETTER_ERROR,
-                    f"Error saving letter: {str(e)}"
-                )
-                
-        except Exception as e:
-            logger.error(f"Error generating letter: {e}")
-            QMessageBox.critical(
-                self,
-                GENERATE_LETTER_ERROR,
-                f"Error generating letter: {str(e)}"
-            )
-            
+                    
     def move_item_up(self) -> None:
         """Move the selected folder item up in the list."""
         item = self.result_tree.selectedItems()[0]

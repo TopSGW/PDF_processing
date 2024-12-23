@@ -1,7 +1,9 @@
-"""Main script for testing PDF processing."""
-from pathlib import Path
+"""Main script for PDF processing application with GUI."""
+import sys
 import logging
-from letter_generator import generate_letter_for_pdf
+from pathlib import Path
+from PyQt5.QtWidgets import QApplication
+from gui import MainWindow
 
 # Configure logging
 logging.basicConfig(
@@ -11,26 +13,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main():
-    """Main function to test PDF processing."""
+    """Main function to run the GUI application."""
     try:
-        # Test with the 15-year PDF
-        pdf_path = Path("15 year.pdf")
-        
-        if not pdf_path.exists():
-            logger.error(f"PDF file not found: {pdf_path}")
-            return
-            
-        logger.info(f"Processing PDF: {pdf_path}")
-        letter, filename = generate_letter_for_pdf(pdf_path, "15-year")
-        
-        logger.info(f"Generated filename: {filename}")
-        logger.info("Generated letter content:")
-        logger.info("-" * 80)
-        logger.info(letter)
-        logger.info("-" * 80)
-        
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
     except Exception as e:
-        logger.error(f"Error processing PDF: {e}", exc_info=True)
+        logger.error(f"Error starting application: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
