@@ -21,6 +21,7 @@ class PDFType:
     """Enumeration of PDF types."""
     DOCUMENT = "document"
     MAP = "map"
+    LETTER = "letter"  # Added new type for letters
     UNKNOWN = "unknown"
 
 class PDFContent:
@@ -84,10 +85,29 @@ class PDFContent:
             return "unknown"
 
     @staticmethod
+    def is_letter_content(text_content: str) -> bool:
+        """
+        Check if the content appears to be a letter.
+        
+        Args:
+            text_content: The text content to analyze
+            
+        Returns:
+            True if the content appears to be a letter, False otherwise
+        """
+        letter_indicators = [
+            "Yours sincerely",
+            "Re: Electrical Equipment",
+            "Paul Wakeford",
+            "Partner",
+            "DARLANDS"
+        ]
+        return any(indicator in text_content for indicator in letter_indicators)
+
+    @staticmethod
     def analyze_pdf_type(pdf_path: Path) -> str:
         """
-        Analyze a PDF to determine its type based on page count.
-        Map PDFs have 1 page, documents have more pages.
+        Analyze a PDF to determine its type based on content and structure.
         
         Args:
             pdf_path: Path to the PDF file
@@ -97,25 +117,28 @@ class PDFContent:
         """
         try:
             page_count = PDFContent.get_page_count(pdf_path)
-            
-            # Check filename for additional clues
+            text_content = PDFContent.extract_text_content(pdf_path)
             filename_lower = pdf_path.name.lower()
             
-            # If filename contains map-related keywords, prioritize that for single-page PDFs
-            if page_count == 1 and any(name in filename_lower for name in ['lv.', 'layout', 'map', 'plan']):
+            # First check if it's a letter
+            if PDFContent.is_letter_content(text_content):
+                return PDFType.LETTER
+            
+            # Then check for map-specific indicators
+            map_indicators = ['lv.', 'layout', 'map', 'plan', 'site']
+            if page_count == 1 and any(indicator in filename_lower for indicator in map_indicators):
                 return PDFType.MAP
                 
-            # If filename contains document-related keywords, prioritize that for multi-page PDFs
-            if page_count > 1 and any(name in filename_lower for name in ['consent', 'agreement', 'contract', 'wayleave']):
+            # Check for document-specific indicators
+            doc_indicators = ['consent', 'agreement', 'contract', 'wayleave']
+            if page_count > 1 or any(indicator in filename_lower for indicator in doc_indicators):
                 return PDFType.DOCUMENT
             
-            # Otherwise, use page count as the primary determinant
+            # If single page but no clear indicators, default to map
             if page_count == 1:
                 return PDFType.MAP
-            elif page_count > 1:
-                return PDFType.DOCUMENT
-            else:
-                return PDFType.UNKNOWN
+                
+            return PDFType.UNKNOWN
             
         except Exception as e:
             logger.error(f"Error analyzing PDF {pdf_path}: {e}")
@@ -124,7 +147,7 @@ class PDFContent:
     @staticmethod
     def is_map_pdf(pdf_path: Path, verbose: bool = False) -> bool:
         """
-        Determine if a PDF is likely a map based on page count.
+        Determine if a PDF is likely a map.
         
         Args:
             pdf_path: Path to the PDF file
@@ -224,7 +247,7 @@ class PDFScanner:
                     document_pdf = pdf
                     # Analyze wayleave type for document PDFs
                     wayleave_type = PDFContent.analyze_wayleave_type(pdf)
-                else:
+                elif pdf_type != PDFType.LETTER:  # Ignore letters in classification
                     additional_pdfs.append(pdf)
             
             logger.info(

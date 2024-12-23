@@ -314,65 +314,82 @@ DARLANDS"""
             raise ContentError(f"Error creating PDF: {str(e)}")
 
     def extract_names_and_address_annual(self, content: str) -> dict:
-        """Extract names and address from annual wayleave document content."""
+        """Extract names and address from annual wayleave document content (updated to handle multiple postcodes)."""
         try:
             logger.debug("Raw content:")
             logger.debug("-" * 80)
             logger.debug(content)
             logger.debug("-" * 80)
-            
+
             self.validate_content(content, "annual")
-            
+
             logger.debug("Extracting names from annual document")
             name_match = re.search(r'I/We,\s+([^\n]+)', content)
             if not name_match:
                 logger.error("Name pattern not found in content")
                 logger.debug(f"Content preview: {content[:200]}")
                 raise ContentError("Could not find names in document")
-            
-            logger.debug(f"Found names: {name_match.group(1)}")
-            
+
+            names = name_match.group(1).strip()
+            logger.debug(f"Found names: {names}")
+
             logger.debug("Extracting address from annual document")
             address_match = re.search(r'of\s+(.*?)(?=being|$)', content, re.DOTALL)
             if not address_match:
                 logger.error("Address pattern not found in content")
                 raise ContentError("Could not find address starting with 'of'")
-            
+
             address = address_match.group(1).strip()
             logger.debug(f"Found raw address: {address}")
-            
-            postcode_match = re.search(r'([A-Z]{1,2}[0-9][0-9A-Z]?\s*[0-9][A-Z]{2})', address)
-            if not postcode_match:
+
+            # --------------------------------------------------
+            # Updated: find ALL possible postcodes in the address
+            # --------------------------------------------------
+            postcode_pattern = r'[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2}'
+            multiple_postcodes = re.findall(postcode_pattern, address, flags=re.IGNORECASE)
+            if not multiple_postcodes:
                 logger.error("Postcode not found in address")
                 raise ContentError("Could not find valid postcode in address")
-            
-            postcode = postcode_match.group(1).replace("  ", " ")
-            logger.debug(f"Found postcode: {postcode}")
-            
-            address_without_postcode = address[:address.find(postcode)].strip()
+
+            logger.debug(f"Found multiple postcodes: {multiple_postcodes}")
+
+            # Use the first matched postcode as the "primary" one
+            primary_postcode = multiple_postcodes[0].upper()
+
+            # Locate this first postcode in the address string so we can separate it out
+            first_pc_index = address.upper().find(primary_postcode)
+            if first_pc_index == -1:
+                logger.error("Could not find the location of the first postcode in the address")
+                raise ContentError("Could not parse the address properly")
+
+            # Slice the address up to the start of that postcode
+            address_without_postcode = address[:first_pc_index].strip()
             if address_without_postcode.endswith(","):
                 address_without_postcode = address_without_postcode[:-1]
-            
+
             parts = [p.strip() for p in address_without_postcode.split(",")]
             logger.debug(f"Address parts: {parts}")
-            
+
             if len(parts) < 2:
                 logger.error("Not enough address parts found")
                 raise ContentError("Address format is incomplete")
-            
+
+            # Build the final result
             result = {
-                'full_names': name_match.group(1),
+                'full_names': names,
                 'address': {
                     'house': parts[0],
-                    'road': parts[1],
-                    'city': parts[2] if len(parts) > 2 else '',
-                    'postcode': postcode
+                    'city': parts[1],
+                    'county': parts[2] if len(parts) > 2 else '',
+                    'postcode': " ".join([pc.upper() for pc in multiple_postcodes]),
+                    # Store all postcodes in a list if desired:
+                    'all_postcodes': [pc.upper() for pc in multiple_postcodes]
                 }
             }
-            
+
             logger.debug(f"Successfully extracted information: {result}")
             return result
-            
+
         except ContentError:
             raise
         except Exception as e:
@@ -399,39 +416,57 @@ DARLANDS"""
             names = match.group(1).strip()
             house_and_road = match.group(2).strip()
             
-            # Extract city, county and postcode
+            # Use your existing pattern to capture *some* address text
             address_pattern = r',\s*([^,]+),\s*([^,]+)\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'
             address_match = re.search(address_pattern, content)
-            
+                        
             if not address_match:
+                # Fallback if needed
                 fallback_pattern = r',\s*([^,]+),\s*([^,]+)\s+(.+?)(?:\s*$|\))'
                 address_match = re.search(fallback_pattern, content)
                 if not address_match:
                     raise ContentError("Could not find complete address details")
-                
+            
+            # Pull out the entire substring that address_match matched
+            address_text = address_match.group(0)
+            
+            # --- KEY ADDITION: find all postcodes in that matched substring ---
+            postcode_pattern = r'[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2}'
+            multiple_postcodes = re.findall(postcode_pattern, address_text, flags=re.IGNORECASE)
+            
+            logger.info(f"Found multiple postcodes in matched address text: {multiple_postcodes}")
+                        
+            # For completeness, let's just pick the first one (if there are multiple):
+            postcode = multiple_postcodes[0].upper() if multiple_postcodes else ''
+            
+            # We still parse city / county from the original capture groups as before
             city = address_match.group(1).strip()
             county = address_match.group(2).strip()
-            postcode = address_match.group(3).strip()
+            # And 'postcode' is from the multiple_postcodes list above
             
             logger.debug(f"Found names: {names}")
             logger.debug(f"Found address components: {house_and_road}, {city}, {county}, {postcode}")
             
+            # Clean up the name string
             names = re.sub(r'\s+', ' ', names)
             
-            # Split house_and_road into components for backward compatibility
+            # Split house_and_road into components (backward compatibility)
             house_parts = house_and_road.split(' ', 1)
             house = house_parts[0]
             road = house_parts[1] if len(house_parts) > 1 else ''
             
+            # Build final result object
             result = {
                 'full_names': names,
                 'address': {
-                    'house': house_and_road,  # Keep 'house' for backward compatibility
-                    'road': road,    # Keep 'road' for backward compatibility
-                    'house_and_road': house_and_road,  # New combined format
+                    'house': house_and_road,     # Keep 'house' for backward compatibility
+                    'road': road,                # Keep 'road' for backward compatibility
+                    'house_and_road': house_and_road,
                     'city': city,
                     'county': county,
-                    'postcode': postcode
+                    'postcode': " ".join([pc.upper() for pc in multiple_postcodes]),
+                    # Optionally store all matched postcodes if you want them:
+                    'all_postcodes': [pc.upper() for pc in multiple_postcodes]
                 }
             }
             
