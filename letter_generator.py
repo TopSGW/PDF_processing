@@ -8,7 +8,7 @@ import fitz  # PyMuPDF
 from num2words import num2words
 from docx import Document
 from docx.shared import Inches, Pt, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_ORIENTATION
 
 # Configure logging
@@ -39,25 +39,19 @@ Dear {}
 
 Re: Electrical Equipment on your Land – Wayleave Agreement
 
-We are pleased to inform you that we have now secured agreement for payment to be made to you
-from Scottish & Southern Energy (SSE).
+We are pleased to inform you that we have now secured agreement for payment to be made to you from Scottish & Southern Energy (SSE).
 
-Please find enclosed two copies of your Wayleave agreement which ALL registered homeowners must
-sign. These documents confirm that SSE hold electrical equipment on your land and as such they will
-now make a wayleave payment to you.
+Please find enclosed two copies of your 15-year Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will make a one-time wayleave payment to you covering a 15-year period.
 
-The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave
-Payment'.
+The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave Payment'. This is a one-time payment covering the full 15-year term.
 
-To help you complete the agreement, please follow these steps for both copies of the wayleave
-agreements:
+To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
     1) All homeowners must sign on the {} PAGE
     2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
     3) Send both copies back to us in the prepaid envelope provided
 
-Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All
-the monies for the wayleave will be paid to, and kept by you.
+Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All the monies for the wayleave will be paid to, and kept by you.
 
 Yours sincerely,
 
@@ -77,30 +71,21 @@ DARLANDS"""
 
 Dear {}
 
-Re: Electrical Equipment on your Land – 15 Year Wayleave Agreement
+Re: Electrical Equipment on your Land – Wayleave Agreement
 
-We are pleased to inform you that we have now secured agreement for a 15-year wayleave payment to be
-made to you from Scottish & Southern Energy (SSE).
+We are pleased to inform you that we have now secured agreement for payment to be made to you from Scottish & Southern Energy (SSE).
 
-Please find enclosed two copies of your 15-year Wayleave agreement which ALL registered homeowners
-must sign. These documents confirm that SSE hold electrical equipment on your land and as such they
-will make a one-time wayleave payment to you covering a 15-year period.
+Please find enclosed two copies of your Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will now make a wayleave payment to you.
 
-The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave
-Payment'. This is a one-time payment covering the full 15-year term.
+The amount being offered to you is confirmed on the agreement under ‘Section 1: the Wayleave Payment’.
 
-To help you complete the agreement, please follow these steps for both copies of the wayleave
-agreements:
+To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
     1) All homeowners must sign on the {} PAGE
     2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
     3) Send both copies back to us in the prepaid envelope provided
 
-Please note that:
-- This is a 15-year agreement with a one-time payment
-- There is no cost or charge to you whatsoever for us setting your wayleave up
-- The payment covers the entire 15-year period
-- After the 15-year term, the agreement will need to be renewed
+Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All the monies for the wayleave will be paid to, and kept by you. 
 
 Yours sincerely,
 
@@ -115,102 +100,73 @@ DARLANDS"""
 
     def create_word_letter(self, letter_content: str, output_path: Path) -> None:
         """
-        Create a Word (DOCX) letter with improved styling and formatting, set to A4 size.
-        
-        Args:
-            letter_content: The text of the letter (line by line).
-            output_path: Where to save the .docx file.
+        Create a Word (DOCX) letter with styling and formatting, set to A4 size,
+        with reduced vertical spacing to minimize tall highlights or bounding areas.
         """
         try:
             doc = Document()
 
-            # ------------------------------------------------------------------------------
-            # 1) Set up document page size and margins
-            # ------------------------------------------------------------------------------
+            # 1) Configure page size, orientation, and margins (adjust as desired)
             section = doc.sections[0]
-            section.page_width = Cm(21.0)   # A4 width
-            section.page_height = Cm(29.7)  # A4 height
-            section.orientation = WD_ORIENTATION.PORTRAIT  # Portrait orientation
+            section.page_width = Cm(21.0)    # A4
+            section.page_height = Cm(29.7)   # A4
+            section.orientation = WD_ORIENTATION.PORTRAIT
+            section.top_margin = Cm(1.54)
+            section.bottom_margin = Cm(2.54)
+            section.left_margin = Cm(2.54)
+            section.right_margin = Cm(0.84)
 
-            # Set margins (adjust as needed)
-            section.top_margin = Cm(2.54)    # 1 inch
-            section.bottom_margin = Cm(2.54) # 1 inch
-            section.left_margin = Cm(2.54)   # 1 inch
-            section.right_margin = Cm(2.54)  # 1 inch
-
-            # ------------------------------------------------------------------------------
-            # 2) Configure the default (Normal) style: font, size, line spacing
-            # ------------------------------------------------------------------------------
+            # 2) Set the default (Normal) style, with tighter line spacing
             style = doc.styles['Normal']
             style.font.name = "Helvetica"
             style.font.size = Pt(11)
-            paragraph_format = style.paragraph_format
-            paragraph_format.line_spacing = 1.15
-            paragraph_format.space_after = Pt(6)
 
-            # ------------------------------------------------------------------------------
-            # 3) Insert logo in header if available
-            # ------------------------------------------------------------------------------
+            paragraph_format = style.paragraph_format
+            # Force single line spacing
+            paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+            # Optionally reduce or remove extra space before/after each paragraph:
+            paragraph_format.space_before = Pt(0)
+            paragraph_format.space_after = Pt(3)  # or Pt(0) if you want even less
+
+            # 3) Header with optional logo
             logo_path = Path("asset/derland.png")
             if logo_path.exists():
                 header = section.header
                 header.is_linked_to_previous = False
                 header_paragraph = header.paragraphs[0]
                 header_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                run = header_paragraph.add_run()
-                run.add_picture(str(logo_path), width=Inches(2))  # Adjust width as needed
+                header_run = header_paragraph.add_run()
+                # Resize the logo as needed
+                header_run.add_picture(str(logo_path), width=Inches(2))
 
-            # ------------------------------------------------------------------------------
-            # 4) Build paragraphs out of letter content
-            # ------------------------------------------------------------------------------
-            lines = letter_content.split('\n')
-            buffer_lines = []
-
-            def flush_buffer_as_paragraph():
-                """Take the buffered lines, join them, and create a new paragraph."""
-                if buffer_lines:
-                    combined_text = " ".join(buffer_lines)
-                    paragraph = doc.add_paragraph(combined_text)
-                    buffer_lines.clear()
-
+            # 4) Letter content, line by line
+            lines = letter_content.splitlines()
             for line in lines:
-                if line.strip():
-                    buffer_lines.append(line)
-                else:
-                    flush_buffer_as_paragraph()
-                    doc.add_paragraph("")  # blank paragraph
+                # Each line becomes its own paragraph, including blank ones
+                doc.add_paragraph(line)
 
-            flush_buffer_as_paragraph()
-
-            # ------------------------------------------------------------------------------
-            # 5) Insert signature image if available
-            # ------------------------------------------------------------------------------
+            # 5) Optional signature
             signature_path = Path("asset/sign.png")
             if signature_path.exists():
                 doc.add_paragraph("")
                 sig_paragraph = doc.add_paragraph()
-                run = sig_paragraph.add_run()
-                run.add_picture(str(signature_path), width=Inches(1.4))  # Adjust width as needed
+                sig_run = sig_paragraph.add_run()
+                sig_run.add_picture(str(signature_path), width=Inches(1.4))
 
-            # ------------------------------------------------------------------------------
-            # 6) Footer: put the company footer in the Word footer section
-            # ------------------------------------------------------------------------------
-            footer_lines = self.company_footer.split('\n')
+            # 6) Footer text
             footer = section.footer
             footer.is_linked_to_previous = False
             footer_paragraph = footer.paragraphs[0]
             footer_paragraph.text = ""
             footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            for line in footer_lines:
+            for line in self.company_footer.split('\n'):
                 run = footer_paragraph.add_run(line + "\n")
                 run.font.name = "Helvetica"
                 run.font.size = Pt(11)
 
-            # ------------------------------------------------------------------------------
             # 7) Save the Word document
-            # ------------------------------------------------------------------------------
-            doc.save(output_path)
+            doc.save(str(output_path))
 
         except Exception as e:
             logger.error(f"Error creating Word DOCX: {e}")
