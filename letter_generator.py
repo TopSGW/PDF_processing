@@ -43,7 +43,7 @@ We are pleased to inform you that we have now secured agreement for payment to b
 
 Please find enclosed two copies of your 15-year Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will make a one-time wayleave payment to you covering a 15-year period.
 
-The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave Payment'. This is a one-time payment covering the full 15-year term.
+The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave Payment'.
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
@@ -77,7 +77,7 @@ We are pleased to inform you that we have now secured agreement for payment to b
 
 Please find enclosed two copies of your Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will now make a wayleave payment to you.
 
-The amount being offered to you is confirmed on the agreement under ‘Section 1: the Wayleave Payment’.
+The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave Payment'.
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
@@ -112,9 +112,9 @@ DARLANDS"""
             section.page_height = Cm(29.7)   # A4
             section.orientation = WD_ORIENTATION.PORTRAIT
             section.top_margin = Cm(1.54)
-            section.bottom_margin = Cm(2.54)
+            section.bottom_margin = Cm(0.84)
             section.left_margin = Cm(2.54)
-            section.right_margin = Cm(0.84)
+            section.right_margin = Cm(2.54)
 
             # 2) Set the default (Normal) style, with tighter line spacing
             style = doc.styles['Normal']
@@ -283,7 +283,7 @@ DARLANDS"""
         except Exception as e:
             logger.error(f"Error creating PDF: {e}")
             raise ContentError(f"Error creating PDF: {str(e)}")
-
+    
     def extract_names_and_address_annual(self, content: str) -> dict:
         """Extract names and address from annual wayleave document content (updated to handle multiple postcodes)."""
         try:
