@@ -42,7 +42,7 @@ Re: Electrical Equipment on your Land – Wayleave Agreement
 
 We are pleased to inform you that we have now secured agreement for payment to be made to you from Scottish & Southern Energy (SSE).
 
-Please find enclosed two copies of your 15-year Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will make a one-time wayleave payment to you covering a 15-year period.
+Please find enclosed two copies of your Wayleave agreement which ALL registered homeowners must sign. These documents confirm that SSE hold electrical equipment on your land and as such they will now make a wayleave payment to you.
 
 The amount being offered to you is confirmed on the agreement under 'Section 1: the Wayleave Payment'.
 
