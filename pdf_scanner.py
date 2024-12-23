@@ -191,10 +191,18 @@ class PDFScanner:
         """
         try:
             logger.debug(f"Scanning directory for PDFs: {directory}")
-            # Get all PDF files
+            
+            excluded_files = {"Print.pdf", "Print 2.pdf"}  # Filenames we do NOT want to include
             pdfs = []
+            
+            # Get all PDF files while excluding certain files
             for pattern in [f"*{PDF_EXTENSION.lower()}", f"*{PDF_EXTENSION.upper()}"]:
-                pdfs.extend(directory.glob(pattern))
+                logger.info(f"Using pattern: {pattern}")
+                pdfs.extend(
+                    pdf
+                    for pdf in directory.glob(pattern)
+                    if pdf.name not in excluded_files
+                )
             
             if not pdfs:
                 logger.debug(f"No PDF files found in {directory}")
@@ -219,11 +227,13 @@ class PDFScanner:
                 else:
                     additional_pdfs.append(pdf)
             
-            logger.info(f"Found in {directory}: "
-                       f"document={document_pdf.name if document_pdf else 'None'}, "
-                       f"map={map_pdf.name if map_pdf else 'None'}, "
-                       f"wayleave_type={wayleave_type}, "
-                       f"additional={len(additional_pdfs)} PDFs")
+            logger.info(
+                f"Found in {directory}: "
+                f"document={document_pdf.name if document_pdf else 'None'}, "
+                f"map={map_pdf.name if map_pdf else 'None'}, "
+                f"wayleave_type={wayleave_type}, "
+                f"additional={len(additional_pdfs)} PDFs"
+            )
             
             return PDFPair(document_pdf, map_pdf, additional_pdfs, wayleave_type)
             

@@ -6,6 +6,10 @@ from pathlib import Path
 import logging
 import fitz  # PyMuPDF
 from num2words import num2words
+from docx import Document
+from docx.shared import Inches, Pt, Cm
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.section import WD_ORIENTATION
 
 # Configure logging
 logging.basicConfig(
@@ -108,6 +112,109 @@ Yours sincerely,
 Paul Wakeford
 Partner
 DARLANDS"""
+
+    def create_word_letter(self, letter_content: str, output_path: Path) -> None:
+        """
+        Create a Word (DOCX) letter with improved styling and formatting, set to A4 size.
+        
+        Args:
+            letter_content: The text of the letter (line by line).
+            output_path: Where to save the .docx file.
+        """
+        try:
+            doc = Document()
+
+            # ------------------------------------------------------------------------------
+            # 1) Set up document page size and margins
+            # ------------------------------------------------------------------------------
+            section = doc.sections[0]
+            section.page_width = Cm(21.0)   # A4 width
+            section.page_height = Cm(29.7)  # A4 height
+            section.orientation = WD_ORIENTATION.PORTRAIT  # Portrait orientation
+
+            # Set margins (adjust as needed)
+            section.top_margin = Cm(2.54)    # 1 inch
+            section.bottom_margin = Cm(2.54) # 1 inch
+            section.left_margin = Cm(2.54)   # 1 inch
+            section.right_margin = Cm(2.54)  # 1 inch
+
+            # ------------------------------------------------------------------------------
+            # 2) Configure the default (Normal) style: font, size, line spacing
+            # ------------------------------------------------------------------------------
+            style = doc.styles['Normal']
+            style.font.name = "Helvetica"
+            style.font.size = Pt(11)
+            paragraph_format = style.paragraph_format
+            paragraph_format.line_spacing = 1.15
+            paragraph_format.space_after = Pt(6)
+
+            # ------------------------------------------------------------------------------
+            # 3) Insert logo in header if available
+            # ------------------------------------------------------------------------------
+            logo_path = Path("asset/derland.png")
+            if logo_path.exists():
+                header = section.header
+                header.is_linked_to_previous = False
+                header_paragraph = header.paragraphs[0]
+                header_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                run = header_paragraph.add_run()
+                run.add_picture(str(logo_path), width=Inches(2))  # Adjust width as needed
+
+            # ------------------------------------------------------------------------------
+            # 4) Build paragraphs out of letter content
+            # ------------------------------------------------------------------------------
+            lines = letter_content.split('\n')
+            buffer_lines = []
+
+            def flush_buffer_as_paragraph():
+                """Take the buffered lines, join them, and create a new paragraph."""
+                if buffer_lines:
+                    combined_text = " ".join(buffer_lines)
+                    paragraph = doc.add_paragraph(combined_text)
+                    buffer_lines.clear()
+
+            for line in lines:
+                if line.strip():
+                    buffer_lines.append(line)
+                else:
+                    flush_buffer_as_paragraph()
+                    doc.add_paragraph("")  # blank paragraph
+
+            flush_buffer_as_paragraph()
+
+            # ------------------------------------------------------------------------------
+            # 5) Insert signature image if available
+            # ------------------------------------------------------------------------------
+            signature_path = Path("asset/sign.png")
+            if signature_path.exists():
+                doc.add_paragraph("")
+                sig_paragraph = doc.add_paragraph()
+                run = sig_paragraph.add_run()
+                run.add_picture(str(signature_path), width=Inches(1.4))  # Adjust width as needed
+
+            # ------------------------------------------------------------------------------
+            # 6) Footer: put the company footer in the Word footer section
+            # ------------------------------------------------------------------------------
+            footer_lines = self.company_footer.split('\n')
+            footer = section.footer
+            footer.is_linked_to_previous = False
+            footer_paragraph = footer.paragraphs[0]
+            footer_paragraph.text = ""
+            footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            for line in footer_lines:
+                run = footer_paragraph.add_run(line + "\n")
+                run.font.name = "Helvetica"
+                run.font.size = Pt(11)
+
+            # ------------------------------------------------------------------------------
+            # 7) Save the Word document
+            # ------------------------------------------------------------------------------
+            doc.save(output_path)
+
+        except Exception as e:
+            logger.error(f"Error creating Word DOCX: {e}")
+            raise ContentError(f"Error creating Word DOCX: {str(e)}")
 
     def create_pdf_letter(self, letter_content: str, output_path: Path) -> None:
         """

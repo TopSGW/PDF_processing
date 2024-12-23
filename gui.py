@@ -145,6 +145,11 @@ class MainWindow(QWidget):
                             # Save in the same folder as the document PDF
                             save_path = doc_pdf.parent / suggested_filename
                             self.letter_generator.create_pdf_letter(letter_content, save_path)
+
+                            docx_filename = suggested_filename.replace(".pdf", ".docx")
+                            docx_save_path = doc_pdf.parent / docx_filename
+                            self.letter_generator.create_word_letter(letter_content, docx_save_path)
+
                             success_count += 1
                             generated_letters.append(save_path)
                             
