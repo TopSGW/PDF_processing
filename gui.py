@@ -22,7 +22,7 @@ from constants import (
     GENERATE_LETTER_ERROR, GENERATE_LETTER_SUCCESS, LETTER_SAVE_DIALOG
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
-from letter_generator import generate_letter_for_pdf, ContentError, WayleaveLetterGenerator
+from letter_generator import WayleaveLetterGenerator
 
 # Configure logging
 logging.basicConfig(

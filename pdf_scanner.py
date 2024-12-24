@@ -351,29 +351,3 @@ class ScannerThread(QThread):
         except Exception as e:
             logger.error(f"Error during scanning: {e}")
             self.scan_finished.emit([])
-
-def main():
-    """Command line interface for testing map detection."""
-    parser = argparse.ArgumentParser(description='Test PDF map detection')
-    parser.add_argument('pdf_path', type=str, help='Path to the PDF file to analyze')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Print detailed analysis')
-    
-    args = parser.parse_args()
-    
-    pdf_path = Path(args.pdf_path)
-    if not pdf_path.exists():
-        print(f"Error: File not found: {pdf_path}")
-        return
-    
-    pdf_type = PDFContent.analyze_pdf_type(pdf_path)
-    wayleave_type = PDFContent.analyze_wayleave_type(pdf_path)
-    print(f"\nAnalysis Result:")
-    print(f"PDF Type: {pdf_type}")
-    print(f"Wayleave Type: {wayleave_type}")
-    
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main()
-    else:
-        print("Please provide a PDF file path to analyze.")
-        print("Usage: python pdf_scanner.py <pdf_path> [--verbose]")
