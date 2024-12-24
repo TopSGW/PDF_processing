@@ -165,9 +165,7 @@ DARLANDS"""
                         sig_run = sig_paragraph.add_run()
                         sig_run.add_picture(str(signature_path), width=Inches(1))
 
-                if sign_cnt >=3 and sign_cnt < 6:
-                    logger.info("empty line handle")
-                else: 
+                if sign_cnt < 3 or sign_cnt >= 6:
                     doc.add_paragraph(line)
 
             # 6) Footer text
