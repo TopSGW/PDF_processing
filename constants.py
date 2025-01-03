@@ -29,6 +29,10 @@ GENERATE_LETTER_ERROR: Final[str] = "Error Generating Letter"
 GENERATE_LETTER_SUCCESS: Final[str] = "Letter Generated Successfully"
 LETTER_SAVE_DIALOG: Final[str] = "Save Letter As"
 
+# Letter generation methods
+LETTER_METHOD_DIRECT: Final[str] = "Direct PDF Generation"
+LETTER_METHOD_WORD: Final[str] = "Word-based Generation"
+
 # Processing constants
 REQUIRED_PDF_COUNT: Final[int] = 2  # Minimum number of PDFs required
 PROCESSED_FOLDER_MARKER: Final[str] = ".processed"  # Marker for processed folders

@@ -12,6 +12,10 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_ORIENTATION
 from docx2pdf import convert
 from constants import get_asset_path
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
 
 # Configure logging
 logging.basicConfig(
@@ -216,94 +220,185 @@ DARLANDS"""
             letter_content: The content of the letter
             output_path: Path where to save the PDF
         """
-        # Create a new PDF document
-        doc = fitz.open()
-        page = doc.new_page(width=595, height=842)  # A4 size in points
-        
-        # Set margins (in points, 1 inch = 72 points)
-        left_margin = 72
-        top_margin = 72
-        right_margin = 72
-        
-        # Load logo and signature
         try:
-            logo_path = Path("asset/derland.png")
-            signature_path = Path("asset/sign.png")
+            logo_path = "asset/derland.png"
+            signature_path = "asset/sign.png"
+            # Create a new PDF document
+            doc = SimpleDocTemplate(str(output_path), pagesize=A4, rightMargin=72, leftMargin=72, topMargin=40, bottomMargin=20)
             
-            if logo_path.exists():
-                logo_rect = fitz.Rect(left_margin, top_margin - 30, 200, top_margin + 10)
-                page.insert_image(logo_rect, filename=str(logo_path))
+            # Set margins (in points, 1 inch = 72 points)
+            left_margin = 72
+            top_margin = 72
+            right_margin = 72
             
-            # Calculate text width
-            text_width = page.rect.width - left_margin - right_margin
-            
-            # Split content into lines
-            lines = letter_content.split('\n')
-            
-            # Current y position for text
-            y_pos = top_margin + 50
-            
-            # Font sizes
-            header_font_size = 11
-            body_font_size = 11
-            
-            # Line spacing
-            line_spacing = 1.15
-            
-            for line in lines:
-                if not line.strip():
-                    # Empty line - add spacing
-                    y_pos += body_font_size * line_spacing
-                    continue
-                
-                if "Autaway Ltd" in line:
-                    font_size = header_font_size
-                    font = "Helvetica"
-                else:
-                    font_size = body_font_size
-                    font = "Helvetica"
-                
-                # Insert text
-                page.insert_text(
-                    point=(left_margin, y_pos),
-                    text=line,
-                    fontname=font,
-                    fontsize=font_size
-                )
-                
-                y_pos += font_size * line_spacing
-            
-            # Add signature at the bottom
-            if signature_path.exists():
-                sig_height = 50
-                sig_width = 100
-                sig_y = y_pos - 110  # Position above the name
-                sig_rect = fitz.Rect(left_margin - 30, sig_y, left_margin + sig_width, sig_y + sig_height)
-                page.insert_image(sig_rect, filename=str(signature_path))
-            
-            footer_lines = self.company_footer.split('\n')
-            footer_y = page.rect.height - (len(footer_lines) * font_size * line_spacing)
-            center_x = page.rect.width / 2
+            styles = getSampleStyleSheet()
 
-            for footer_line in footer_lines:
-                # Calculate the width of the text to center it
-                text_width = len(footer_line) * font_size * 0.5  # Approximate width
-                x_pos = center_x - (text_width / 2)
-                
-                page.insert_text(
-                    point=(x_pos, footer_y),
-                    text=footer_line,
-                    fontname="Helvetica",
-                    fontsize=font_size
-                )
-                footer_y += font_size * line_spacing
-            # Save the PDF
-            doc.save(output_path, deflate=True, garbage=4)
-            doc.close()
+            # 3. Customize a Paragraph Style
+            #    - Use 'Normal' as a base and override line spacing and font size, etc.
+            style_normal = styles["Normal"]
+            style_normal.fontName = "Helvetica"
+            style_normal.fontSize = 11
+            style_normal.leading = 16  # line spacing in points
+            style_normal.spaceAfter = 0  # extra space after each paragraph
+
+            story = []
+
+            logo_img = Image(logo_path, width=120, height=32, hAlign="LEFT")
+            signature_img = Image(signature_path, width=60, height=45, hAlign="LEFT")
+            story.append(logo_img)
+
+            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 10))
             
+            paragraphs = letter_content.split("\n")
+
+            sign_flg = False
+            sign_cnt = 0
+            for para in paragraphs:
+                if para.strip():
+                    story.append(Paragraph(para, style_normal))
+                elif sign_flg == True and (sign_cnt < 2 or sign_cnt > 3):
+                    logger.info(f"skiping line {sign_cnt}")
+                else:
+                    story.append(Spacer(1, 10))
+
+                if sign_flg == True:
+                    sign_cnt = sign_cnt + 1
+
+                if "Yours sincerely" in para:
+                    sign_flg = True
+
+                if sign_cnt == 3:
+                    story.append(signature_img)
+            
+            def draw_footer(canvas, doc_):
+                """
+                Draws a multi-line footer using a Paragraph, converting newlines to <br/>.
+                """
+                canvas.saveState()
+
+                # Convert Python newlines to <br/> so Paragraph displays them as multiple lines
+                footer_html = self.company_footer.replace("\n", "<br/>")
+
+                footer_style = ParagraphStyle(
+                    name="FooterStyle",
+                    parent=styles["Normal"],
+                    fontName="Helvetica",
+                    fontSize=10,
+                    leading=11,
+                    alignment=1,  # center
+                    spaceAfter=10
+                )
+
+                footer_para = Paragraph(footer_html, footer_style)
+
+                # Wrap the paragraph to find its height
+                max_width = doc_.width
+                w, h = footer_para.wrapOn(canvas, max_width, doc_.bottomMargin)
+
+                # Decide where to draw it (for example, 0.5 inch from bottom)
+                x_pos = doc_.leftMargin
+                y_pos = 0.5 * inch
+
+                # Draw it
+                footer_para.drawOn(canvas, x_pos, y_pos)
+
+                canvas.restoreState()
+
+            # -- 5) Build the PDF with our on-page functions
+            #       onFirstPage -> runs on page 1
+            #       onLaterPages -> runs on pages 2,3,4...
+            doc.build(
+                story, 
+                onFirstPage=draw_footer,
+                onLaterPages=draw_footer
+            )
         except Exception as e:
             logger.error(f"Error creating PDF: {e}")
             raise ContentError(f"Error creating PDF: {str(e)}")
+        
+
+
+        # Load logo and signature
+        # try:
+        #     logo_path = Path("asset/derland.png")
+        #     signature_path = Path("asset/sign.png")
+            
+        #     if logo_path.exists():
+        #         logo_rect = fitz.Rect(left_margin, top_margin - 30, 200, top_margin + 10)
+        #         page.insert_image(logo_rect, filename=str(logo_path))
+            
+        #     # Calculate text width
+        #     text_width = page.rect.width - left_margin - right_margin
+
+        #     # Split content into lines
+        #     lines = letter_content.split('\n')
+
+        #     # Current y position for text
+        #     y_pos = top_margin + 50
+            
+        #     # Font sizes
+        #     header_font_size = 11
+        #     body_font_size = 11
+            
+        #     # Line spacing
+        #     line_spacing = 1.15
+
+        #     for line in lines:
+        #         if not line.strip():
+        #             # Empty line - add spacing
+        #             y_pos += body_font_size * line_spacing
+        #             continue
+                
+        #         if "Autaway Ltd" in line:
+        #             font_size = header_font_size
+        #             font = "Helvetica"
+        #         else:
+        #             font_size = body_font_size
+        #             font = "Helvetica"
+                
+        #         # Insert text
+        #         page.insert_textbox(
+        #             rect=fitz.Rect(left_margin, y_pos),
+        #             text=line,
+        #             fontname=font,
+        #             fontsize=font_size
+        #         )
+                
+        #         y_pos += font_size * line_spacing
+            
+        #     # Add signature at the bottom
+        #     if signature_path.exists():
+        #         sig_height = 50
+        #         sig_width = 100
+        #         sig_y = y_pos - 110  # Position above the name
+        #         sig_rect = fitz.Rect(left_margin - 30, sig_y, left_margin + sig_width, sig_y + sig_height)
+        #         page.insert_image(sig_rect, filename=str(signature_path))
+            
+        #     footer_lines = self.company_footer.split('\n')
+        #     footer_y = page.rect.height - (len(footer_lines) * font_size * line_spacing)
+        #     center_x = page.rect.width / 2
+
+        #     for footer_line in footer_lines:
+        #         # Calculate the width of the text to center it
+        #         text_width = len(footer_line) * font_size * 0.5  # Approximate width
+        #         x_pos = center_x - (text_width / 2)
+                
+        #         page.insert_text(
+        #             point=(x_pos, footer_y),
+        #             text=footer_line,
+        #             fontname="Helvetica",
+        #             fontsize=font_size
+        #         )
+        #         footer_y += font_size * line_spacing
+        #     # Save the PDF
+        #     doc.save(output_path, deflate=True, garbage=4)
+        #     doc.close()
+            
+        # except Exception as e:
+        #     logger.error(f"Error creating PDF: {e}")
+        #     raise ContentError(f"Error creating PDF: {str(e)}")
 
     def extract_names_and_address_annual(self, content: str) -> dict:
         """Extract names and address from annual wayleave document content (updated to handle multiple postcodes)."""

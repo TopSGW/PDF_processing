@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QListWidget, QListWidgetItem,
     QFileDialog, QLabel, QProgressBar, QMessageBox,
     QHBoxLayout, QFrame, QTreeWidget, QTreeWidgetItem,
-    QToolButton, QStyle, QSizePolicy
+    QToolButton, QStyle, QSizePolicy, QRadioButton, QButtonGroup
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -19,7 +19,8 @@ from constants import (
     PROCESS_TEXT, ADD_PDF_DIALOG_TITLE, REMOVE_CONFIRM_TITLE,
     REMOVE_CONFIRM_TEXT, PDF_EXTENSION, MERGE_AND_COMPRESS_PDFS,
     GENERATE_ANNUAL_LETTER, GENERATE_15_YEAR_LETTER,
-    GENERATE_LETTER_ERROR, GENERATE_LETTER_SUCCESS, LETTER_SAVE_DIALOG
+    GENERATE_LETTER_ERROR, GENERATE_LETTER_SUCCESS, LETTER_SAVE_DIALOG,
+    LETTER_METHOD_DIRECT, LETTER_METHOD_WORD
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
 from letter_generator import WayleaveLetterGenerator
@@ -70,16 +71,33 @@ class MainWindow(QWidget):
         
         main_layout.addLayout(content_layout)
         
-        # Create letter generation buttons
-        letter_buttons_layout = QHBoxLayout()
+        # Create letter generation section
+        letter_section_layout = QVBoxLayout()
+        
+        # Create radio button group for letter generation method
+        method_group = QButtonGroup(self)
+        method_frame = QFrame()
+        method_layout = QHBoxLayout()
+        
+        self.direct_method_radio = QRadioButton(LETTER_METHOD_DIRECT)
+        self.direct_method_radio.setChecked(True)
+        method_group.addButton(self.direct_method_radio)
+        method_layout.addWidget(self.direct_method_radio)
+        
+        self.word_method_radio = QRadioButton(LETTER_METHOD_WORD)
+        method_group.addButton(self.word_method_radio)
+        method_layout.addWidget(self.word_method_radio)
+        
+        method_frame.setLayout(method_layout)
+        letter_section_layout.addWidget(method_frame)
         
         # Create Letters button for all PDFs
         self.create_all_letters_btn = QPushButton("Create Letters")
         self.create_all_letters_btn.setEnabled(False)
         self.create_all_letters_btn.clicked.connect(self.generate_all_letters)
-        letter_buttons_layout.addWidget(self.create_all_letters_btn)
-                
-        main_layout.addLayout(letter_buttons_layout)
+        letter_section_layout.addWidget(self.create_all_letters_btn)
+        
+        main_layout.addLayout(letter_section_layout)
         
         # Add process button at bottom
         self.merge_btn = QPushButton(MERGE_AND_COMPRESS_PDFS)
@@ -97,6 +115,9 @@ class MainWindow(QWidget):
             error_messages = []
 
             generated_letters = []
+
+            # Get selected generation method
+            use_word_method = self.word_method_radio.isChecked()
 
             # Iterate through all folders
             for i in range(self.result_tree.topLevelItemCount()):
@@ -133,8 +154,14 @@ class MainWindow(QWidget):
                             
                             # Save in the same folder as the document PDF
                             save_path = doc_pdf.parent / suggested_filename
-                            self.letter_generator.create_pdf_letter(letter_content, save_path)
+                            
+                            # Use selected method to generate PDF
+                            if use_word_method:
+                                self.letter_generator.convert_pdf_letter(letter_content, save_path)
+                            else:
+                                self.letter_generator.create_pdf_letter(letter_content, save_path)
 
+                            # Always create Word document
                             docx_filename = suggested_filename.replace(".pdf", ".docx")
                             docx_save_path = doc_pdf.parent / docx_filename
                             self.letter_generator.create_word_letter(letter_content, docx_save_path)
@@ -182,7 +209,6 @@ class MainWindow(QWidget):
                 f"Error generating letters: {str(e)}"
             )
 
-    # [Previous methods remain unchanged...]
     def create_header_section(self, parent_layout: QVBoxLayout) -> None:
         """Create the header section of the UI."""
         header_frame = QFrame()
@@ -290,32 +316,6 @@ class MainWindow(QWidget):
         
         # Enable Create Letters button if there are any items
         self.create_all_letters_btn.setEnabled(self.result_tree.topLevelItemCount() > 0)
-        
-        # Enable/disable letter generation buttons based on document selection
-        has_document = False
-        wayleave_type = "unknown"
-        if has_selection:
-            selected_item = selected[0]
-            if selected_item.childCount() > 0:  # If it's a folder
-                for i in range(selected_item.childCount()):
-                    child = selected_item.child(i)
-                    if "(Document)" in child.text(0):
-                        has_document = True
-                        # Extract wayleave type from tooltip
-                        tooltip = child.toolTip(0)
-                        if "Wayleave Type: " in tooltip:
-                            wayleave_type = tooltip.split("Wayleave Type: ")[1]
-                        break
-            elif "(Document)" in selected_item.text(0):  # If it's a document
-                has_document = True
-                # Extract wayleave type from tooltip
-                tooltip = selected_item.toolTip(0)
-                if "Wayleave Type: " in tooltip:
-                    wayleave_type = tooltip.split("Wayleave Type: ")[1]
-        
-        # Enable appropriate letter button based on wayleave type
-        # self.annual_letter_btn.setEnabled(has_document and (wayleave_type == "annual" or wayleave_type == "unknown"))
-        # self.fifteen_year_letter_btn.setEnabled(has_document and (wayleave_type == "15-year" or wayleave_type == "unknown"))
         
     def get_selected_document_pdf(self) -> Optional[Path]:
         """Get the selected document PDF path."""
