@@ -110,16 +110,39 @@ class MainWindow(QWidget):
     def generate_all_letters(self) -> None:
         """Generate letters for all PDFs in their respective sub-folders."""
         try:
+            # Count total documents to process
+            total_docs = 0
+            for i in range(self.result_tree.topLevelItemCount()):
+                folder_item = self.result_tree.topLevelItem(i)
+                for j in range(folder_item.childCount()):
+                    if "(Document)" in folder_item.child(j).text(0):
+                        total_docs += 1
+
+            if total_docs == 0:
+                QMessageBox.warning(self, "No Documents", "No documents found to process.")
+                return
+
+            # Setup progress bar
+            self.progress.setRange(0, total_docs)
+            self.progress.setValue(0)
+            self.progress.setVisible(True)
+            self.status_label.setVisible(True)
+            self.status_label.setText("Starting letter generation...")
+
             success_count = 0
             error_count = 0
             error_messages = []
-
             generated_letters = []
 
             # Get selected generation method
             use_word_method = self.word_method_radio.isChecked()
 
+            # Disable buttons during processing
+            self.create_all_letters_btn.setEnabled(False)
+            self.merge_btn.setEnabled(False)
+
             # Iterate through all folders
+            current_doc = 0
             for i in range(self.result_tree.topLevelItemCount()):
                 folder_item = self.result_tree.topLevelItem(i)
                 
@@ -139,6 +162,10 @@ class MainWindow(QWidget):
                 
                 if doc_pdf and doc_pdf.exists():
                     try:
+                        current_doc += 1
+                        self.status_label.setText(f"Processing document {current_doc} of {total_docs}: {doc_pdf.name}")
+                        self.progress.setValue(current_doc)
+
                         # Extract content from PDF
                         content = PDFContent.extract_text_content(doc_pdf)
                         page_count = PDFContent.get_page_count(doc_pdf)
@@ -174,6 +201,7 @@ class MainWindow(QWidget):
                         error_messages.append(f"Error processing {doc_pdf.name}: {str(e)}")
             
             if generated_letters:
+                self.status_label.setText("Merging generated letters...")
                 try:
                     merged_path = self.selected_folder / "Print 2.pdf"
                     merged_doc = fitz.open()
@@ -188,6 +216,15 @@ class MainWindow(QWidget):
                 except Exception as merge_err:
                     logger.error(f"Error merging final PDF: {merge_err}")
                     error_messages.append(f"Error merging final PDF: {merge_err}")
+
+            # Hide progress bar and status
+            self.progress.setVisible(False)
+            self.status_label.setVisible(False)
+
+            # Re-enable buttons
+            self.create_all_letters_btn.setEnabled(True)
+            self.merge_btn.setEnabled(True)
+
             # Show summary message
             message = f"Letter Generation Complete\n\n"
             message += f"Successfully generated: {success_count} letters\n"
@@ -208,6 +245,12 @@ class MainWindow(QWidget):
                 "Error",
                 f"Error generating letters: {str(e)}"
             )
+            # Ensure buttons are re-enabled on error
+            self.create_all_letters_btn.setEnabled(True)
+            self.merge_btn.setEnabled(True)
+            # Hide progress elements
+            self.progress.setVisible(False)
+            self.status_label.setVisible(False)
 
     def create_header_section(self, parent_layout: QVBoxLayout) -> None:
         """Create the header section of the UI."""
@@ -232,10 +275,21 @@ class MainWindow(QWidget):
         
     def create_progress_section(self, parent_layout: QVBoxLayout) -> None:
         """Create the progress section of the UI."""
+        progress_frame = QFrame()
+        progress_layout = QVBoxLayout()
+        
+        # Status label
+        self.status_label = QLabel()
+        self.status_label.setVisible(False)
+        progress_layout.addWidget(self.status_label)
+        
+        # Progress bar
         self.progress = QProgressBar()
-        self.progress.setRange(0, 0)  # Indeterminate state
         self.progress.setVisible(False)
-        parent_layout.addWidget(self.progress)
+        progress_layout.addWidget(self.progress)
+        
+        progress_frame.setLayout(progress_layout)
+        parent_layout.addWidget(progress_frame)
         
     def create_results_section(self, parent_layout: QHBoxLayout) -> None:
         """Create the results section of the UI."""
@@ -478,6 +532,9 @@ class MainWindow(QWidget):
             
             # Show the progress bar
             self.progress.setVisible(True)
+            self.progress.setRange(0, 0)  # Indeterminate state for scanning
+            self.status_label.setText("Scanning folder...")
+            self.status_label.setVisible(True)
             self.select_button.setEnabled(False)
             
             # Create and start scanning thread
@@ -488,6 +545,7 @@ class MainWindow(QWidget):
         except Exception as e:
             logger.error(f"Error starting scan: {e}")
             self.progress.setVisible(False)
+            self.status_label.setVisible(False)
             self.select_button.setEnabled(True)
             QMessageBox.critical(
                 self,
@@ -543,6 +601,7 @@ class MainWindow(QWidget):
             logger.debug(f"Handling scan results: {len(results)} folders found")
             # Hide progress bar and re-enable button
             self.progress.setVisible(False)
+            self.status_label.setVisible(False)
             self.select_button.setEnabled(True)
             
             # Display results
