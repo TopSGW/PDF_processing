@@ -221,8 +221,10 @@ DARLANDS"""
             output_path: Path where to save the PDF
         """
         try:
-            logo_path = "asset/derland.png"
-            signature_path = "asset/sign.png"
+            # Use get_asset_path to get the correct absolute paths for images
+            logo_path = get_asset_path("asset/derland.png")
+            signature_path = get_asset_path("asset/sign.png")
+
             # Create a new PDF document
             doc = SimpleDocTemplate(str(output_path), pagesize=A4, rightMargin=72, leftMargin=72, topMargin=40, bottomMargin=20)
             
@@ -317,88 +319,6 @@ DARLANDS"""
         except Exception as e:
             logger.error(f"Error creating PDF: {e}")
             raise ContentError(f"Error creating PDF: {str(e)}")
-        
-
-
-        # Load logo and signature
-        # try:
-        #     logo_path = Path("asset/derland.png")
-        #     signature_path = Path("asset/sign.png")
-            
-        #     if logo_path.exists():
-        #         logo_rect = fitz.Rect(left_margin, top_margin - 30, 200, top_margin + 10)
-        #         page.insert_image(logo_rect, filename=str(logo_path))
-            
-        #     # Calculate text width
-        #     text_width = page.rect.width - left_margin - right_margin
-
-        #     # Split content into lines
-        #     lines = letter_content.split('\n')
-
-        #     # Current y position for text
-        #     y_pos = top_margin + 50
-            
-        #     # Font sizes
-        #     header_font_size = 11
-        #     body_font_size = 11
-            
-        #     # Line spacing
-        #     line_spacing = 1.15
-
-        #     for line in lines:
-        #         if not line.strip():
-        #             # Empty line - add spacing
-        #             y_pos += body_font_size * line_spacing
-        #             continue
-                
-        #         if "Autaway Ltd" in line:
-        #             font_size = header_font_size
-        #             font = "Helvetica"
-        #         else:
-        #             font_size = body_font_size
-        #             font = "Helvetica"
-                
-        #         # Insert text
-        #         page.insert_textbox(
-        #             rect=fitz.Rect(left_margin, y_pos),
-        #             text=line,
-        #             fontname=font,
-        #             fontsize=font_size
-        #         )
-                
-        #         y_pos += font_size * line_spacing
-            
-        #     # Add signature at the bottom
-        #     if signature_path.exists():
-        #         sig_height = 50
-        #         sig_width = 100
-        #         sig_y = y_pos - 110  # Position above the name
-        #         sig_rect = fitz.Rect(left_margin - 30, sig_y, left_margin + sig_width, sig_y + sig_height)
-        #         page.insert_image(sig_rect, filename=str(signature_path))
-            
-        #     footer_lines = self.company_footer.split('\n')
-        #     footer_y = page.rect.height - (len(footer_lines) * font_size * line_spacing)
-        #     center_x = page.rect.width / 2
-
-        #     for footer_line in footer_lines:
-        #         # Calculate the width of the text to center it
-        #         text_width = len(footer_line) * font_size * 0.5  # Approximate width
-        #         x_pos = center_x - (text_width / 2)
-                
-        #         page.insert_text(
-        #             point=(x_pos, footer_y),
-        #             text=footer_line,
-        #             fontname="Helvetica",
-        #             fontsize=font_size
-        #         )
-        #         footer_y += font_size * line_spacing
-        #     # Save the PDF
-        #     doc.save(output_path, deflate=True, garbage=4)
-        #     doc.close()
-            
-        # except Exception as e:
-        #     logger.error(f"Error creating PDF: {e}")
-        #     raise ContentError(f"Error creating PDF: {str(e)}")
 
     def extract_names_and_address_annual(self, content: str) -> dict:
         """Extract names and address from annual wayleave document content (updated to handle multiple postcodes)."""
@@ -506,7 +426,7 @@ DARLANDS"""
             # Use your existing pattern to capture *some* address text
             address_pattern = r',\s*([^,]+),\s*([^,]+)\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'
             address_match = re.search(address_pattern, content)
-                        
+
             if not address_match:
                 # Fallback if needed
                 fallback_pattern = r',\s*([^,]+),\s*([^,]+)\s+(.+?)(?:\s*$|\))'
@@ -514,6 +434,7 @@ DARLANDS"""
                 if not address_match:
                     raise ContentError("Could not find complete address details")
             
+            logger.info(f"address match::: {address_match}")
             # Pull out the entire substring that address_match matched
             address_text = address_match.group(0)
             
@@ -542,6 +463,7 @@ DARLANDS"""
             house = house_parts[0]
             road = house_parts[1] if len(house_parts) > 1 else ''
             
+            logger.info(f"Found address components: {house_and_road}, {city}, {county}, {postcode}")
             # Build final result object
             result = {
                 'full_names': names,
@@ -646,14 +568,31 @@ DARLANDS"""
             if not isinstance(address_dict, dict):
                 raise ContentError("Invalid address dictionary")
             
+            # Clean and sanitize each component
+            def sanitize_component(component):
+                if not component:
+                    return ""
+                # Replace newlines and multiple spaces with a single space
+                component = re.sub(r'\s+', ' ', component.strip())
+                # Replace invalid filename characters
+                component = re.sub(r'[<>:"/\\|?*]', '', component)
+                return component
+            
             filename_parts = [
-                address_dict['house'],
-                address_dict['city'],
-                'Surrey' if 'county' in address_dict and 'Surrey' in address_dict['county'] else address_dict.get('county', 'Surrey'),
-                address_dict['postcode']
+                sanitize_component(address_dict['house']),
+                sanitize_component(address_dict['city']),
+                sanitize_component('Surrey' if 'county' in address_dict and 'Surrey' in address_dict['county'] else address_dict.get('county', 'Surrey')),
+                sanitize_component(address_dict['postcode'])
             ]
             
-            return f"{', '.join(part for part in filename_parts if part)}.pdf"
+            # Filter out empty parts and join with commas
+            filename = ", ".join(part for part in filename_parts if part)
+            
+            # Ensure the filename ends with .pdf
+            if not filename.lower().endswith('.pdf'):
+                filename += '.pdf'
+                
+            return filename
             
         except Exception as e:
             logger.error(f"Error generating filename: {e}")
