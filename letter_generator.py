@@ -411,7 +411,8 @@ DARLANDS"""
             logger.debug(content)
             logger.debug("-" * 80)
             
-            # Pattern to extract names and house_and_road
+            # 1) Extract the "names" and "house_and_road"
+            #    (same as before)
             pattern = r'\(1\)\s*(.*?)\s+of\s*(.*?)\s*(?=,\s*|\))'
             match = re.search(pattern, content, re.DOTALL)
             
@@ -422,60 +423,76 @@ DARLANDS"""
             
             names = match.group(1).strip()
             house_and_road = match.group(2).strip()
-            
-            # Use your existing pattern to capture *some* address text
-            address_pattern = r',\s*([^,]+),\s*([^,]+)\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'
+            house_and_road = house_and_road.replace('\n', '')
+            # 2) Updated pattern to allow 2 or 3 commas before postcode
+            address_pattern = (
+                r',\s*([^,]+),'         # group(1)
+                r'\s*([^,]+)'          # group(2)
+                r'(?:,\s*([^,]+))?'    # optional group(3)
+                r'\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'  # group(4) = postcode
+            )
             address_match = re.search(address_pattern, content)
-
-            if not address_match:
-                # Fallback if needed
-                fallback_pattern = r',\s*([^,]+),\s*([^,]+)\s+(.+?)(?:\s*$|\))'
-                address_match = re.search(fallback_pattern, content)
-                if not address_match:
-                    raise ContentError("Could not find complete address details")
             
-            logger.info(f"address match::: {address_match}")
-            # Pull out the entire substring that address_match matched
+            if not address_match:
+                # Optional fallback or error:
+                logger.error("Could not find address details with 2 or 3 commas + postcode")
+                raise ContentError("Could not find complete address details")
+            
+            # 3) Extract the captures
+            line1 = address_match.group(1).strip()  # e.g., 'Highworth' or 'Lightwater'
+            line2 = address_match.group(2).strip()  # e.g., 'Swindon' or 'Surrey'
+            line3 = address_match.group(3).strip() if address_match.group(3) else ''
+            postcode_match = address_match.group(4).strip()  # single postcode from group(4)
+            
+            if '(' in line2:
+                parts = line2.split()
+                if parts:
+                    line2 = parts[0]
+
+            # 4) The entire substring matched by this pattern
             address_text = address_match.group(0)
             
-            # --- KEY ADDITION: find all postcodes in that matched substring ---
+            # Also find *all* postcodes in that substring, just in case there’s more than one
             postcode_pattern = r'[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2}'
             multiple_postcodes = re.findall(postcode_pattern, address_text, flags=re.IGNORECASE)
             
-            logger.info(f"Found multiple postcodes in matched address text: {multiple_postcodes}")
-                        
-            # For completeness, let's just pick the first one (if there are multiple):
-            postcode = multiple_postcodes[0].upper() if multiple_postcodes else ''
-            
-            # We still parse city / county from the original capture groups as before
-            city = address_match.group(1).strip()
-            county = address_match.group(2).strip()
-            # And 'postcode' is from the multiple_postcodes list above
+            # If multiple postcodes are found, pick the first for backward compatibility
+            postcode = multiple_postcodes[0].upper() if multiple_postcodes else postcode_match
             
             logger.debug(f"Found names: {names}")
-            logger.debug(f"Found address components: {house_and_road}, {city}, {county}, {postcode}")
+            logger.debug(f"house_and_road: {house_and_road}")
+            logger.debug(f"line1: {line1}")
+            logger.debug(f"line2: {line2}")
+            logger.debug(f"line3: {line3}")
+            logger.debug(f"postcode: {postcode}")
             
-            # Clean up the name string
+            # 5) Clean up the name string
             names = re.sub(r'\s+', ' ', names)
             
-            # Split house_and_road into components (backward compatibility)
+            # 6) Split house_and_road for backward compatibility
             house_parts = house_and_road.split(' ', 1)
             house = house_parts[0]
             road = house_parts[1] if len(house_parts) > 1 else ''
             
-            logger.info(f"Found address components: {house_and_road}, {city}, {county}, {postcode}")
+            logger.info(f"multiple_postcodes => {multiple_postcodes}")
+            
+            logger.info(f"house and road: {house_and_road}, city:: {line1},  county:: {line2}, and multipostcodes: {" ".join([pc.upper() for pc in multiple_postcodes])}")
             # Build final result object
             result = {
                 'full_names': names,
                 'address': {
-                    'house': house_and_road,     # Keep 'house' for backward compatibility
-                    'road': road,                # Keep 'road' for backward compatibility
+                    'house': house_and_road,   # or house_and_road
+                    'road': road,
                     'house_and_road': house_and_road,
-                    'city': city,
-                    'county': county,
+                    # line1, line2, line3 might be city / county / extra
+                    'city': line1,
+                    'county': line2,
+                    'line1': line1,
+                    'line2': line2,
+                    'line3': line3,
                     'postcode': " ".join([pc.upper() for pc in multiple_postcodes]),
-                    # Optionally store all matched postcodes if you want them:
-                    'all_postcodes': [pc.upper() for pc in multiple_postcodes]
+                    # Optionally store all matched postcodes
+                    'all_postcodes': [pc.upper() for pc in multiple_postcodes],
                 }
             }
             
