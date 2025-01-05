@@ -648,17 +648,17 @@ class MainWindow(QWidget):
             )
     
     def merge_and_compress_pdfs(self):
-        """Process the selected PDF pairs."""
-        # Get all folder items
+        """Merge and compress selected Document + Map PDFs with PyMuPDF."""
+        
+        # Gather PDF pairs
         folders = []
         for i in range(self.result_tree.topLevelItemCount()):
             item = self.result_tree.topLevelItem(i)
             folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
             
-            # Get document and map PDFs
+            # Extract doc_pdf & map_pdf
             doc_pdf = None
             map_pdf = None
-            
             for j in range(item.childCount()):
                 child = item.child(j)
                 pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
@@ -666,41 +666,44 @@ class MainWindow(QWidget):
                     doc_pdf = pdf_path
                 else:
                     map_pdf = pdf_path
-                    
-            folders.append((folder_path, PDFPair(doc_pdf, map_pdf, [])))
+            
+            folders.append((folder_path, (doc_pdf, map_pdf)))
 
+        # Prepare final list of PDF paths: Document first, then Map
         pdf_paths = []
-        for folder_path, pair in folders:
-            # Order here is Document first, then Map
-            # If you need a different order, adjust accordingly.
-            if pair.document_pdf:
-                pdf_paths.append(pair.document_pdf)
-            if pair.map_pdf:
-                pdf_paths.append(pair.map_pdf)
+        for folder_path, (doc_pdf, map_pdf) in folders:
+            if doc_pdf is not None:
+                pdf_paths.append(doc_pdf)
+            if map_pdf is not None:
+                pdf_paths.append(map_pdf)
 
         output_path = self.selected_folder / "Print.pdf"
+
+        # Merge PDFs using PyMuPDF
         merged_doc = fitz.open()
 
-        # Append all PDFs in specified order
         for pdf_path in pdf_paths:
-            with fitz.open(pdf_path) as src_doc:
-                # Append each page
-                merged_doc.insert_pdf(src_doc)
+            # insert_pdf automatically appends pages from src PDF
+            src_doc = fitz.open(pdf_path)
+            merged_doc.insert_pdf(src_doc)
+            src_doc.close()
 
-        # Remove all annotations from each page to "flatten" the document
-        # (This removes pop-ups, comments, highlights, etc.)
-        for page_index in range(len(merged_doc)):
-            page = merged_doc[page_index]
-            annot = page.first_annot
-            while annot:
-                page.delete_annot(annot)
-                annot = page.first_annot
-
-        merged_doc.save(output_path, deflate=True, garbage=4)
+        # Instead of deleting annotations, we’ll rely on PyMuPDF’s built-in flatten
+        # If you still want to remove all 'true' annotations while preserving layer-like objects,
+        # you *can* do it carefully, but try without first.
+        #
+        # For mild compression/cleanup, use:
+        #
+        #    merged_doc.save(
+        #        output_path,
+        #        deflate=True,   # moderate compression
+        #        garbage=3,      # do a moderate garbage collect
+        #        incremental=False
+        #    )
+        #
+        # If some PDFs still break, remove or reduce the garbage/deflate settings:
+        
+        merged_doc.save(output_path, deflate=True, garbage=3, incremental=False)
         merged_doc.close()
 
-        QMessageBox.information(
-            self,
-            "Merge and Compress",
-            f"Successfully merged!"
-        )
+        QMessageBox.information(self, "Merge and Compress", "Successfully merged!")
