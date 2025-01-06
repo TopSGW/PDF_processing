@@ -721,7 +721,8 @@ class MainWindow(QWidget):
                                 if subtype in unwanted_subtypes:
                                     # This is a comment-like annotation, skip it
                                     continue
-                                elif subtype == Name("/FreeText"):
+
+                                if subtype == Name("/FreeText"):
                                     # It's a FreeText annotation. Check if /Contents mentions "Single Pole".
                                     contents_str = annot.get("/Contents", "")
                                     # Convert to str if it's a pikepdf.String
@@ -731,9 +732,9 @@ class MainWindow(QWidget):
 
                                     else:
                                         new_annots.append(annot_ref)
-                                else:
-                                    # Keep it
-                                    new_annots.append(annot_ref)
+                                # else:
+                                #     # Keep it
+                                #     new_annots.append(annot_ref)
 
                             # If new_annots is empty, remove /Annots entirely. Otherwise, keep it.
                             if len(new_annots) == 0:
