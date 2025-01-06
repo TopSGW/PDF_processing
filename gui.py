@@ -2,17 +2,7 @@
 import logging
 import fitz
 from pathlib import Path
-import subprocess
-import pikepdf
-from pikepdf import Name
-import aspose.pdf as ap
 from typing import List, Tuple, Optional
-from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject, DictionaryObject, ArrayObject
-from fillpdf import fillpdfs
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, letter
-from pdfrw import PdfReader, PdfWriter
 import io
 from PIL import Image
 
