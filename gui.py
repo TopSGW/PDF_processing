@@ -2,6 +2,9 @@
 import logging
 import fitz
 from pathlib import Path
+import subprocess
+import pikepdf
+from pikepdf import Name
 from typing import List, Tuple, Optional
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QListWidget, QListWidgetItem,
@@ -648,62 +651,121 @@ class MainWindow(QWidget):
             )
     
     def merge_and_compress_pdfs(self):
-        """Merge and compress selected Document + Map PDFs with PyMuPDF."""
-        
-        # Gather PDF pairs
-        folders = []
-        for i in range(self.result_tree.topLevelItemCount()):
-            item = self.result_tree.topLevelItem(i)
-            folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
-            
-            # Extract doc_pdf & map_pdf
-            doc_pdf = None
-            map_pdf = None
-            for j in range(item.childCount()):
-                child = item.child(j)
-                pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
-                if "(Document)" in child.text(0):
-                    doc_pdf = pdf_path
-                else:
-                    map_pdf = pdf_path
-            
-            folders.append((folder_path, (doc_pdf, map_pdf)))
+        """Merge PDF pairs (Document + Map), remove annotations, and then flatten/compress with Ghostscript, using pikepdf."""
 
-        # Prepare final list of PDF paths: Document first, then Map
-        pdf_paths = []
-        for folder_path, (doc_pdf, map_pdf) in folders:
-            if doc_pdf is not None:
-                pdf_paths.append(doc_pdf)
-            if map_pdf is not None:
-                pdf_paths.append(map_pdf)
+        """
+        1) Merge selected PDFs into one.
+        2) Remove only 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Ink' annotation subtypes.
+        3) Keep all other annotation subtypes. (Preserves 'FreeText', 'Stamp', form fields, etc.)
+        4) Do NOT flatten or remove layers.
+        """
+        try:
+    
+            # 1. Gather PDF file paths from QTreeWidget
+            folders = []
+            for i in range(self.result_tree.topLevelItemCount()):
+                item = self.result_tree.topLevelItem(i)
+                folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
 
-        output_path = self.selected_folder / "Print.pdf"
+                doc_pdf = None
+                map_pdf = None
+                for j in range(item.childCount()):
+                    child = item.child(j)
+                    pdf_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
+                    if "(Document)" in child.text(0):
+                        doc_pdf = pdf_path
+                    else:
+                        map_pdf = pdf_path
+                
+                folders.append((folder_path, (doc_pdf, map_pdf)))
 
-        # Merge PDFs using PyMuPDF
-        merged_doc = fitz.open()
+            # 2. Build final PDF path list (Document first, then Map)
+            pdf_paths = []
+            for folder_path, (doc_pdf, map_pdf) in folders:
+                if doc_pdf is not None:
+                    pdf_paths.append(doc_pdf)
+                if map_pdf is not None:
+                    pdf_paths.append(map_pdf)
 
-        for pdf_path in pdf_paths:
-            # insert_pdf automatically appends pages from src PDF
-            src_doc = fitz.open(pdf_path)
-            merged_doc.insert_pdf(src_doc)
-            src_doc.close()
+            # 3. Create a new blank PDF for the merged result
+            merged_pdf = pikepdf.Pdf.new()
 
-        # Instead of deleting annotations, we’ll rely on PyMuPDF’s built-in flatten
-        # If you still want to remove all 'true' annotations while preserving layer-like objects,
-        # you *can* do it carefully, but try without first.
-        #
-        # For mild compression/cleanup, use:
-        #
-        #    merged_doc.save(
-        #        output_path,
-        #        deflate=True,   # moderate compression
-        #        garbage=3,      # do a moderate garbage collect
-        #        incremental=False
-        #    )
-        #
-        # If some PDFs still break, remove or reduce the garbage/deflate settings:
-        
-        merged_doc.save(output_path, deflate=True, garbage=3, incremental=False)
-        merged_doc.close()
+            # 4. Merge each PDF, removing only certain unwanted annotation subtypes
+            #    We'll define a set of subtypes that we DO NOT want:
+            unwanted_subtypes = {
+                Name('/Text'),       # Sticky note
+                Name('/Highlight'),
+                Name('/Underline'),
+                Name('/StrikeOut'),
+                Name('/Squiggly'),
+                Name('/Ink'),
+                Name('/Line'),
+                Name('/PolyLine'),
+                Name('/Polygon')
+            }
+            # If you want to remove e.g. /FreeText or /Stamp too, add them above.
 
-        QMessageBox.information(self, "Merge and Compress", "Successfully merged!")
+            for pdf_path in pdf_paths:
+                with pikepdf.Pdf.open(pdf_path) as src:
+                    for page in src.pages:
+                        if '/Annots' in page:
+                            new_annots = pikepdf.Array()
+                            for annot_ref in page['/Annots']:
+
+                                if hasattr(annot_ref, "get_object"):
+                                    annot = annot_ref.get_object()
+                                else:
+                                    annot = annot_ref
+
+                                subtype = annot.get('/Subtype', None)
+                                if subtype in unwanted_subtypes:
+                                    # This is a comment-like annotation, skip it
+                                    continue
+                                elif subtype == Name("/FreeText"):
+                                    # It's a FreeText annotation. Check if /Contents mentions "Single Pole".
+                                    contents_str = annot.get("/Contents", "")
+                                    # Convert to str if it's a pikepdf.String
+                                    if "Single Pole" in str(contents_str):
+                                        # Skip adding this annotation (remove it)
+                                        continue
+
+                                    else:
+                                        new_annots.append(annot_ref)
+                                else:
+                                    # Keep it
+                                    new_annots.append(annot_ref)
+
+                            # If new_annots is empty, remove /Annots entirely. Otherwise, keep it.
+                            if len(new_annots) == 0:
+                                del page['/Annots']
+                            else:
+                                page['/Annots'] = new_annots
+
+                    # Now append all pages from this src into merged_pdf
+                    merged_pdf.pages.extend(src.pages)
+
+            # 5. Save merged PDF (no Ghostscript flatten, so layers remain).
+            output_path = self.selected_folder / "Print.pdf"
+            merged_pdf.save(
+                str(output_path),
+                # compress_streams=True,   # mild stream compression
+                # min_version='1.4',
+                # optimize_version=True
+            )
+            merged_pdf.close()
+
+            # 6. Notify user
+            QMessageBox.information(
+                self,
+                "Selective Annotation Removal",
+                f"Merged PDFs saved to:\n{output_path}\n\n"
+                "Only unwanted comment subtypes were removed.\n"
+                "All other layers/annotations remain intact."
+            )
+        except Exception as e:
+            logger.error(f"Error handling print results: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Error displaying results: {str(e)}"
+            )        
