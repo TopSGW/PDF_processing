@@ -53,9 +53,9 @@ The amount being offered to you is confirmed on the agreement under 'Section 1: 
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
-    1) All homeowners must sign on the {} PAGE
-    2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
-    3) Send both copies back to us in the prepaid envelope provided
+        1) All homeowners must sign on the {} PAGE
+        2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
+        3) Send both copies back to us in the prepaid envelope provided
 
 Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All the monies for the wayleave will be paid to, and kept by you.
 
@@ -87,9 +87,9 @@ The amount being offered to you is confirmed on the agreement under 'Section 1: 
 
 To help you complete the agreement, please follow these steps for both copies of the wayleave agreements:
 
-    1) All homeowners must sign on the {} PAGE
-    2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
-    3) Send both copies back to us in the prepaid envelope provided
+        1) All homeowners must sign on the {} PAGE
+        2) All homeowners must sign and date on the FOURTH PAGE (Title Plan)
+        3) Send both copies back to us in the prepaid envelope provided
 
 Please note that there is no cost, or charge to you whatsoever for us setting your wayleave up. All the monies for the wayleave will be paid to, and kept by you. 
 
@@ -118,13 +118,13 @@ DARLANDS"""
             section.page_height = Cm(29.7)   # A4
             section.orientation = WD_ORIENTATION.PORTRAIT
             section.top_margin = Cm(1.54)
-            section.bottom_margin = Cm(0.84)
+            section.bottom_margin = Cm(0)
             section.left_margin = Cm(2.54)
             section.right_margin = Cm(2.54)
 
             # 2) Set the default (Normal) style, with tighter line spacing
             style = doc.styles['Normal']
-            style.font.name = "Helvetica"
+            style.font.name = "Calibri"
             style.font.size = Pt(11)
 
             paragraph_format = style.paragraph_format
@@ -143,7 +143,7 @@ DARLANDS"""
                 header_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 header_run = header_paragraph.add_run()
                 # Resize the logo as needed
-                header_run.add_picture(str(logo_path), width=Inches(2))
+                header_run.add_picture(str(logo_path), width=Inches(1.93), height=Inches(0.55))
 
             # 4) Letter content, line by line
             doc.add_paragraph("")
@@ -155,6 +155,54 @@ DARLANDS"""
             sign_cnt = 0
             for line in lines:
                 # Each line becomes its own paragraph, including blank ones
+
+                if "Re:" in line:
+                    # Example: Make the entire line bold
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.bold = True
+                    continue
+
+                if "The amount being" in line:
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.bold = True
+                    continue
+
+                if "Please note that" in line:
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.bold = True
+                    continue
+                
+                if "1)" in line:
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.italic = True
+                    continue
+
+                if "2)" in line:
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.italic = True
+                    continue
+
+                if "3)" in line:
+                    paragraph = doc.add_paragraph()
+                    run = paragraph.add_run(line)
+                    run.italic = True
+                    continue
+
+                if "which ALL" in line:
+                    paragraph = doc.add_paragraph()
+                    before, after = line.split("ALL", 1)
+                    paragraph.add_run(before)
+                    run = paragraph.add_run("ALL")
+                    run.bold = True
+                    run.underline = True
+                    paragraph.add_run(after)
+                    continue
+
                 if sign_flg == True:
                     sign_cnt = sign_cnt + 1
 
@@ -167,12 +215,18 @@ DARLANDS"""
                     if signature_path.exists():
                         sig_paragraph = doc.add_paragraph()
                         sig_run = sig_paragraph.add_run()
-                        sig_run.add_picture(str(signature_path), width=Inches(1))
+                        sig_run.add_picture(str(signature_path), width=Inches(0.9), height=Inches(0.63))
 
                 if sign_cnt < 3 or sign_cnt >= 6:
-                    doc.add_paragraph(line)
+                    if "DARLANDS" in line:
+                        paragraph = doc.add_paragraph()
+                        run = paragraph.add_run(line)
+                        run.bold = True
+                    else:
+                        doc.add_paragraph(line)
 
             # 6) Footer text
+            section.footer_distance = Cm(0)  # Increase as needed
             footer = section.footer
             footer.is_linked_to_previous = False
             footer_paragraph = footer.paragraphs[0]
@@ -181,7 +235,7 @@ DARLANDS"""
 
             for line in self.company_footer.split('\n'):
                 run = footer_paragraph.add_run(line + "\n")
-                run.font.name = "Helvetica"
+                run.font.name = "Calibri"
                 run.font.size = Pt(11)
 
             # 7) Save the Word document
