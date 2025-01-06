@@ -5,7 +5,18 @@ from pathlib import Path
 import subprocess
 import pikepdf
 from pikepdf import Name
+import aspose.pdf as ap
 from typing import List, Tuple, Optional
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import NameObject, DictionaryObject, ArrayObject
+from fillpdf import fillpdfs
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, letter
+from pdfrw import PdfReader, PdfWriter
+import io
+from PIL import Image
+
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QListWidget, QListWidgetItem,
     QFileDialog, QLabel, QProgressBar, QMessageBox,
@@ -78,21 +89,21 @@ class MainWindow(QWidget):
         letter_section_layout = QVBoxLayout()
         
         # Create radio button group for letter generation method
-        method_group = QButtonGroup(self)
-        method_frame = QFrame()
-        method_layout = QHBoxLayout()
+        # method_group = QButtonGroup(self)
+        # method_frame = QFrame()
+        # method_layout = QHBoxLayout()
         
-        self.direct_method_radio = QRadioButton(LETTER_METHOD_DIRECT)
-        self.direct_method_radio.setChecked(True)
-        method_group.addButton(self.direct_method_radio)
-        method_layout.addWidget(self.direct_method_radio)
+        # self.direct_method_radio = QRadioButton(LETTER_METHOD_DIRECT)
+        # self.direct_method_radio.setChecked(True)
+        # method_group.addButton(self.direct_method_radio)
+        # method_layout.addWidget(self.direct_method_radio)
         
-        self.word_method_radio = QRadioButton(LETTER_METHOD_WORD)
-        method_group.addButton(self.word_method_radio)
-        method_layout.addWidget(self.word_method_radio)
+        # self.word_method_radio = QRadioButton(LETTER_METHOD_WORD)
+        # method_group.addButton(self.word_method_radio)
+        # method_layout.addWidget(self.word_method_radio)
         
-        method_frame.setLayout(method_layout)
-        letter_section_layout.addWidget(method_frame)
+        # method_frame.setLayout(method_layout)
+        # letter_section_layout.addWidget(method_frame)
         
         # Create Letters button for all PDFs
         self.create_all_letters_btn = QPushButton("Create Letters")
@@ -138,7 +149,7 @@ class MainWindow(QWidget):
             generated_letters = []
 
             # Get selected generation method
-            use_word_method = self.word_method_radio.isChecked()
+            # use_word_method = self.word_method_radio.isChecked()
 
             # Disable buttons during processing
             self.create_all_letters_btn.setEnabled(False)
@@ -186,10 +197,10 @@ class MainWindow(QWidget):
                             save_path = doc_pdf.parent / suggested_filename
                             
                             # Use selected method to generate PDF
-                            if use_word_method:
-                                self.letter_generator.convert_pdf_letter(letter_content, save_path)
-                            else:
-                                self.letter_generator.create_pdf_letter(letter_content, save_path)
+                            # if use_word_method:
+                            self.letter_generator.convert_pdf_letter(letter_content, save_path)
+                            # else:
+                            #     self.letter_generator.create_pdf_letter(letter_content, save_path)
 
                             # Always create Word document
                             docx_filename = suggested_filename.replace(".pdf", ".docx")
@@ -660,13 +671,13 @@ class MainWindow(QWidget):
         4) Do NOT flatten or remove layers.
         """
         try:
-    
-            # 1. Gather PDF file paths from QTreeWidget
+            # Step 1: Gather PDF pairs
             folders = []
             for i in range(self.result_tree.topLevelItemCount()):
                 item = self.result_tree.topLevelItem(i)
                 folder_path = item.text(0).split(" (")[0].replace("📁 ", "")
-
+                
+                # Extract doc_pdf & map_pdf
                 doc_pdf = None
                 map_pdf = None
                 for j in range(item.childCount()):
@@ -679,7 +690,7 @@ class MainWindow(QWidget):
                 
                 folders.append((folder_path, (doc_pdf, map_pdf)))
 
-            # 2. Build final PDF path list (Document first, then Map)
+            # Step 2: Prepare list of PDF paths (Document first, then Map)
             pdf_paths = []
             for folder_path, (doc_pdf, map_pdf) in folders:
                 if doc_pdf is not None:
@@ -687,86 +698,74 @@ class MainWindow(QWidget):
                 if map_pdf is not None:
                     pdf_paths.append(map_pdf)
 
-            # 3. Create a new blank PDF for the merged result
-            merged_pdf = pikepdf.Pdf.new()
-
-            # 4. Merge each PDF, removing only certain unwanted annotation subtypes
-            #    We'll define a set of subtypes that we DO NOT want:
-            unwanted_subtypes = {
-                Name('/Text'),       # Sticky note
-                Name('/Highlight'),
-                Name('/Underline'),
-                Name('/StrikeOut'),
-                Name('/Squiggly'),
-                Name('/Ink'),
-                Name('/Line'),
-                Name('/PolyLine'),
-                Name('/Polygon')
-            }
-            # If you want to remove e.g. /FreeText or /Stamp too, add them above.
+            # Step 3: Merge PDFs using PyMuPDF
+            merged_doc = fitz.open()
 
             for pdf_path in pdf_paths:
-                with pikepdf.Pdf.open(pdf_path) as src:
-                    for page in src.pages:
-                        if '/Annots' in page:
-                            new_annots = pikepdf.Array()
-                            for annot_ref in page['/Annots']:
+                src_doc = fitz.open(pdf_path)
+                merged_doc.insert_pdf(src_doc)
+                src_doc.close()
 
-                                if hasattr(annot_ref, "get_object"):
-                                    annot = annot_ref.get_object()
-                                else:
-                                    annot = annot_ref
+            # Step 5: Save the Merged and Cleaned PDF Temporarily in Memory
+            # Using a bytes buffer to avoid writing to disk
+            merged_pdf_buffer = io.BytesIO()
+            merged_doc.save(merged_pdf_buffer, deflate=True, garbage=3, incremental=False)
+            merged_doc.close()
 
-                                subtype = annot.get('/Subtype', None)
-                                if subtype in unwanted_subtypes:
-                                    # This is a comment-like annotation, skip it
-                                    continue
+            # Re-open the merged PDF from the buffer
+            merged_pdf_buffer.seek(0)
+            merged_doc = fitz.open(stream=merged_pdf_buffer, filetype="pdf")
 
-                                if subtype == Name("/FreeText"):
-                                    # It's a FreeText annotation. Check if /Contents mentions "Single Pole".
-                                    contents_str = annot.get("/Contents", "")
-                                    # Convert to str if it's a pikepdf.String
-                                    if "Single Pole" in str(contents_str):
-                                        # Skip adding this annotation (remove it)
-                                        continue
+            # Step 6: Create a New PDF for Image-Based Content
+            image_based_pdf = fitz.open()
 
-                                    else:
-                                        new_annots.append(annot_ref)
-                                # else:
-                                #     # Keep it
-                                #     new_annots.append(annot_ref)
+            for page_number in range(merged_doc.page_count):
+                page = merged_doc.load_page(page_number)
+                zoom = 2.0  # Adjust for higher/lower resolution
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                
+                # Convert pixmap to bytes in a supported image format (e.g., PNG)
+                img_bytes = pix.pil_tobytes(format="PNG")
+                
+                # Create a new PDF page with the same dimensions as the original page
+                original_page = page
+                original_rect = original_page.rect  # in points
+                pdf_page = image_based_pdf.new_page(width=original_rect.width, height=original_rect.height)
+                
+                # Insert the image into the new PDF page
+                # Calculate the rectangle where the image will be placed
+                # To fit the image exactly on the page, use the entire page rectangle
+                insert_rect = fitz.Rect(0, 0, original_rect.width, original_rect.height)
+                
+                # Insert the image using the stream parameter
+                # Alternatively, you can use pixmap=pix, but using stream provides more flexibility
+                pdf_page.insert_image(
+                    insert_rect,
+                    stream=img_bytes,
+                    # Optionally, you can set keep_proportion=True if the aspect ratio might differ
+                    keep_proportion=True,
+                    # You can adjust the image scaling if needed
+                    # For example, to center the image:
+                    # fitz.Rect(x0, y0, x1, y1)
+                    # where x0 and y0 are calculated based on image size and page size
+                )
 
-                            # If new_annots is empty, remove /Annots entirely. Otherwise, keep it.
-                            if len(new_annots) == 0:
-                                del page['/Annots']
-                            else:
-                                page['/Annots'] = new_annots
+                logger.debug(f"Inserted image on page {page_number + 1}")
 
-                    # Now append all pages from this src into merged_pdf
-                    merged_pdf.pages.extend(src.pages)
+            # Step 7: Save the Image-Based Merged PDF
+            output_path = self.selected_folder / "Image_Based_Print.pdf"
+            image_based_pdf.save(output_path, deflate=True, garbage=3)
+            image_based_pdf.close()
+            merged_doc.close()
+            merged_pdf_buffer.close()
 
-            # 5. Save merged PDF (no Ghostscript flatten, so layers remain).
-            output_path = self.selected_folder / "Print.pdf"
-            merged_pdf.save(
-                str(output_path),
-                # compress_streams=True,   # mild stream compression
-                # min_version='1.4',
-                # optimize_version=True
-            )
-            merged_pdf.close()
+            QMessageBox.information(self, "Merge and Compress", "Successfully created an image-based merged PDF!")
 
-            # 6. Notify user
-            QMessageBox.information(
-                self,
-                "Selective Annotation Removal",
-                f"Merged PDFs saved to:\n{output_path}\n\n"
-                "Only unwanted comment subtypes were removed.\n"
-                "All other layers/annotations remain intact."
-            )
         except Exception as e:
             logger.error(f"Error handling print results: {e}")
             QMessageBox.critical(
                 self,
                 "Error",
-                f"Error displaying results: {str(e)}"
-            )        
+                f"Error creating image-based merged PDF: {str(e)}"
+            )
