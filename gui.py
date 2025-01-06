@@ -754,13 +754,13 @@ class MainWindow(QWidget):
                 logger.debug(f"Inserted image on page {page_number + 1}")
 
             # Step 7: Save the Image-Based Merged PDF
-            output_path = self.selected_folder / "Image_Based_Print.pdf"
+            output_path = self.selected_folder / "Print.pdf"
             image_based_pdf.save(output_path, deflate=True, garbage=3)
             image_based_pdf.close()
             merged_doc.close()
             merged_pdf_buffer.close()
 
-            QMessageBox.information(self, "Merge and Compress", "Successfully created an image-based merged PDF!")
+            QMessageBox.information(self, "Merge and Compress", "Successfully merged!")
 
         except Exception as e:
             logger.error(f"Error handling print results: {e}")
