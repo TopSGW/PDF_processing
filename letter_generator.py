@@ -160,7 +160,7 @@ DARLANDS
             paragraph_format.space_after = Pt(0)  # or Pt(0) if you want even less
 
             # 3) Header with optional logo
-            logo_path = Path(get_asset_path("asset/derland.png"))
+            logo_path = Path(get_asset_path("asset/derland2.png"))
             if logo_path.exists():
                 header = section.header
                 header.is_linked_to_previous = False
