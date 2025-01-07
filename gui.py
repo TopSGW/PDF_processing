@@ -182,6 +182,10 @@ class MainWindow(QWidget):
                             letter_content, suggested_filename = self.letter_generator.generate_letter(
                                 content, letter_type, page_count=page_count
                             )
+
+                            second_letter_content, _ = self.letter_generator.generate_second_letter(
+                                content=content, letter_type=letter_type, page_count=page_count
+                            )
                             
                             # Save in the same folder as the document PDF
                             save_path = doc_pdf.parent / suggested_filename
@@ -197,6 +201,9 @@ class MainWindow(QWidget):
                             docx_save_path = doc_pdf.parent / docx_filename
                             self.letter_generator.create_word_letter(letter_content, docx_save_path)
                             
+                            second_letter_path = doc_pdf.parent / "Wayleave and Cheque Enclosed - Good Printer.docx"
+                            self.letter_generator.create_word_letter(second_letter_content, second_letter_path)
+
                             success_count += 1
                             generated_letters.append(save_path)
                             

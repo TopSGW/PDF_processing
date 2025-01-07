@@ -3,7 +3,7 @@ import sys
 import logging
 from pathlib import Path
 from PyQt5.QtWidgets import QApplication
-from gui import MainWindow
+from gui.main_window import MainWindow  # Updated import to use new implementation
 
 # Configure logging
 logging.basicConfig(

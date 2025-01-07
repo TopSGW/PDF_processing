@@ -104,6 +104,31 @@ Paul Wakeford
 Partner
 DARLANDS"""
 
+        self.second_letter_template = """{}
+
+{}
+
+
+Dear {}
+
+Re: Completed Wayleave Enclosed
+
+I am pleased to enclose your countersigned wayleave with SSE accompanied by the cheque payment from them. This now completes the wayleave process for you and we will therefore close our files.
+
+It has been a pleasure representing you in this matter.
+
+Yours sincerely,
+
+
+
+
+
+
+Paul Wakeford	
+Partner
+DARLANDS
+"""
+
     def create_word_letter(self, letter_content: str, output_path: Path) -> None:
         """
         Create a Word (DOCX) letter with styling and formatting, set to A4 size,
@@ -699,6 +724,41 @@ DARLANDS"""
                 f"{header_names}\n{formatted_address}",
                 salutation_names,
                 sign_page
+            )
+            
+            filename = self.generate_filename(info['address'])
+            
+            logger.info("Letter generation successful")
+            return letter, filename
+            
+        except Exception as e:
+            logger.error(f"Error generating {letter_type} letter: {e}")
+            raise ContentError(f"Error generating letter: {str(e)}")
+
+    def generate_second_letter(self, content: str, letter_type: str = "annual", page_count: int = 1) -> tuple:
+        """Generate a wayleave letter based on document content."""
+        try:
+            logger.info(f"Generating {letter_type} letter")
+            logger.debug(f"Content preview: {content[:200] if content else 'Empty content'}")
+            
+            if letter_type not in ["annual", "15-year"]:
+                raise ContentError(f"Invalid letter type: {letter_type}")
+            
+            if letter_type == "annual":
+                info = self.extract_names_and_address_annual(content)
+            else:
+                info = self.extract_names_and_address_fifteen_year(content)
+            
+            template = self.second_letter_template
+            header_names, salutation_names = self.format_names(info['full_names'])
+            formatted_address = self.format_address(info['address'])
+            
+            current_date = datetime.now().strftime("%d %B %Y")
+            
+            letter = template.format(
+                current_date,
+                f"{header_names}\n{formatted_address}",
+                salutation_names,
             )
             
             filename = self.generate_filename(info['address'])
