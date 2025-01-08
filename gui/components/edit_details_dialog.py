@@ -103,6 +103,11 @@ class EditDetailsDialog(QDialog):
         """)
         main_layout.addWidget(title_label)
         
+        # Description
+        desc_label = QLabel("Enter each address line, using commas to separate parts. The postcode will be placed at the end.")
+        desc_label.setStyleSheet("font-weight: normal; color: #666;")
+        main_layout.addWidget(desc_label)
+        
         # Add separator
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
@@ -121,16 +126,12 @@ class EditDetailsDialog(QDialog):
         # Add rows
         rows = [
             ('Names', self.original_names),
-            ('House/Number', self.original_address.get('house', '').split(',')[0] if self.original_address.get('house') else ''),
-            ('Street', self.original_address.get('house', '').split(',')[1] if self.original_address.get('house') and len(self.original_address.get('house').split(',')) > 1 else ''),
-            ('Address Line 1', ''),
-            ('Address Line 2', ''),
-            ('Address Line 3', ''),
-            ('Address Line 4', ''),
-            ('Address Line 5', ''),
-            ('Address Line 6', ''),
-            ('City', self.original_address.get('city', '')),
-            ('County', self.original_address.get('county', '')),
+            ('Address 1', self.original_address.get('address_1', '')),
+            ('Address 2', self.original_address.get('address_2', '')),
+            ('Address 3', self.original_address.get('address_3', '')),
+            ('Address 4', self.original_address.get('address_4', '')),
+            ('Address 5', self.original_address.get('address_5', '')),
+            ('Address 6', self.original_address.get('address_6', '')),
             ('Postcode', self.original_address.get('postcode', ''))
         ]
         
@@ -189,7 +190,7 @@ class EditDetailsDialog(QDialog):
         """Validate all fields before accepting."""
         # Get values from table
         names = self.table.item(0, 1).text().strip()
-        postcode = self.table.item(11, 1).text().strip()
+        postcode = self.table.item(7, 1).text().strip()
         
         if not names:
             QMessageBox.warning(self, "Validation Error", "Names field cannot be empty.")
@@ -205,16 +206,12 @@ class EditDetailsDialog(QDialog):
         """Reset all fields to their original values."""
         rows = [
             ('Names', self.original_names),
-            ('House/Number', self.original_address.get('house', '').split(',')[0] if self.original_address.get('house') else ''),
-            ('Street', self.original_address.get('house', '').split(',')[1] if self.original_address.get('house') and len(self.original_address.get('house').split(',')) > 1 else ''),
-            ('Address Line 1', ''),
-            ('Address Line 2', ''),
-            ('Address Line 3', ''),
-            ('Address Line 4', ''),
-            ('Address Line 5', ''),
-            ('Address Line 6', ''),
-            ('City', self.original_address.get('city', '')),
-            ('County', self.original_address.get('county', '')),
+            ('Address 1', self.original_address.get('address_1', '')),
+            ('Address 2', self.original_address.get('address_2', '')),
+            ('Address 3', self.original_address.get('address_3', '')),
+            ('Address 4', self.original_address.get('address_4', '')),
+            ('Address 5', self.original_address.get('address_5', '')),
+            ('Address 6', self.original_address.get('address_6', '')),
             ('Postcode', self.original_address.get('postcode', ''))
         ]
         
@@ -225,27 +222,14 @@ class EditDetailsDialog(QDialog):
         """Get the current values from the dialog."""
         names = self.table.item(0, 1).text().strip()
         
-        # Combine house/number and street
-        house_number = self.table.item(1, 1).text().strip()
-        street = self.table.item(2, 1).text().strip()
-        house = f"{house_number}, {street}" if street else house_number
-        
-        # Get additional address lines
-        address_lines = []
-        for i in range(3, 9):  # Address Line 1-6
-            line = self.table.item(i, 1).text().strip()
-            if line:
-                address_lines.append(line)
-        
-        # If there are additional address lines, append them to house
-        if address_lines:
-            house = f"{house}, {', '.join(address_lines)}"
-        
         address = {
-            'house': house,
-            'city': self.table.item(9, 1).text().strip(),
-            'county': self.table.item(10, 1).text().strip(),
-            'postcode': self.table.item(11, 1).text().strip().upper()
+            'address_1': self.table.item(1, 1).text().strip(),
+            'address_2': self.table.item(2, 1).text().strip(),
+            'address_3': self.table.item(3, 1).text().strip(),
+            'address_4': self.table.item(4, 1).text().strip(),
+            'address_5': self.table.item(5, 1).text().strip(),
+            'address_6': self.table.item(6, 1).text().strip(),
+            'postcode': self.table.item(7, 1).text().strip().upper()
         }
         
         return names, address

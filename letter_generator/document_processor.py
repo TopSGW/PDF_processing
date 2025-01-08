@@ -26,6 +26,29 @@ def validate_content(content: str, letter_type: str) -> None:
             
     logger.debug(f"Content validation passed for {letter_type} document")
 
+def clean_address_line(line: str) -> str:
+    """Clean address line by removing parenthetical content, 'and', and handling whitespace."""
+    if not line or line.isspace():
+        return ""
+        
+    # Replace newlines and multiple spaces with a single space
+    line = re.sub(r'\s+', ' ', line)
+    
+    # Remove 'and' from the line
+    line = line.replace(' and ', ' ').replace(' AND ', ' ')
+    
+    if '(' in line:
+        parts = line.split()
+        if parts:
+            # Take everything before the first part containing a parenthesis
+            cleaned_parts = []
+            for part in parts:
+                if '(' in part:
+                    break
+                cleaned_parts.append(part)
+            return ' '.join(cleaned_parts) if cleaned_parts else parts[0]
+    return line.strip()
+
 def extract_names_and_address_annual(content: str) -> dict:
     """Extract names and address from annual wayleave document content."""
     try:
@@ -55,41 +78,39 @@ def extract_names_and_address_annual(content: str) -> dict:
         address = address_match.group(1).strip()
         logger.debug(f"Found raw address: {address}")
 
-        postcode_pattern = r'[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2}'
-        multiple_postcodes = re.findall(postcode_pattern, address, flags=re.IGNORECASE)
-        if not multiple_postcodes:
+        # Find postcode
+        postcode_pattern = r'[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}'
+        postcode_match = re.search(postcode_pattern, address, flags=re.IGNORECASE)
+        if not postcode_match:
             logger.error("Postcode not found in address")
             raise ContentError("Could not find valid postcode in address")
 
-        logger.debug(f"Found multiple postcodes: {multiple_postcodes}")
+        # Split address at postcode
+        postcode = postcode_match.group(0).upper()
+        address_parts = address[:postcode_match.start()].strip()
+        if address_parts.endswith(","):
+            address_parts = address_parts[:-1]
 
-        primary_postcode = multiple_postcodes[0].upper()
-        first_pc_index = address.upper().find(primary_postcode)
-        
-        if first_pc_index == -1:
-            logger.error("Could not find the location of the first postcode in the address")
-            raise ContentError("Could not parse the address properly")
-
-        address_without_postcode = address[:first_pc_index].strip()
-        if address_without_postcode.endswith(","):
-            address_without_postcode = address_without_postcode[:-1]
-
-        parts = [p.strip() for p in address_without_postcode.split(",")]
+        # Split remaining address into parts and clean each line
+        parts = [clean_address_line(p) for p in address_parts.split(",")]
+        # Filter out empty lines and whitespace-only lines
+        parts = [p for p in parts if p and not p.isspace()]
         logger.debug(f"Address parts: {parts}")
 
-        if len(parts) < 2:
-            logger.error("Not enough address parts found")
-            raise ContentError("Address format is incomplete")
+        # Create address dictionary with numbered lines
+        address_dict = {}
+        current_line = 1
+        for part in parts:
+            if current_line <= 6 and part:  # Only use up to 6 address lines
+                address_dict[f'address_{current_line}'] = part
+                current_line += 1
+
+        # Add postcode
+        address_dict['postcode'] = postcode
 
         result = {
             'full_names': names,
-            'address': {
-                'house': parts[0],
-                'city': parts[1],
-                'county': parts[2] if len(parts) > 2 else '',
-                'postcode': " ".join([pc.upper() for pc in multiple_postcodes]),
-                'all_postcodes': [pc.upper() for pc in multiple_postcodes]
-            }
+            'address': address_dict
         }
 
         logger.debug(f"Successfully extracted information: {result}")
@@ -118,57 +139,43 @@ def extract_names_and_address_fifteen_year(content: str) -> dict:
             raise ContentError("Could not find names and address in 15-year document")
         
         names = match.group(1).strip()
-        house_and_road = match.group(2).strip()
-        house_and_road = house_and_road.replace('\n', '')
+        initial_address = clean_address_line(match.group(2).strip())
         
-        address_pattern = (
-            r',\s*([^,]+),'         # group(1)
-            r'\s*([^,]+)'          # group(2)
-            r'(?:,\s*([^,]+))?'    # optional group(3)
-            r'\s+([A-Z0-9][A-Z0-9\s-]{0,10}[A-Z0-9])'  # group(4) = postcode
-        )
-        address_match = re.search(address_pattern, content)
+        # Find the complete address section
+        address_text = content[match.end():].strip()
         
-        if not address_match:
-            logger.error("Could not find address details with 2 or 3 commas + postcode")
-            raise ContentError("Could not find complete address details")
-        
-        line1 = address_match.group(1).strip()
-        line2 = address_match.group(2).strip()
-        line3 = address_match.group(3).strip() if address_match.group(3) else ''
-        postcode_match = address_match.group(4).strip()
-        
-        if '(' in line2:
-            parts = line2.split()
-            if parts:
-                line2 = parts[0]
+        # Find postcode
+        postcode_pattern = r'[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}'
+        postcode_match = re.search(postcode_pattern, address_text, flags=re.IGNORECASE)
+        if not postcode_match:
+            logger.error("Postcode not found in address")
+            raise ContentError("Could not find valid postcode in address")
 
-        address_text = address_match.group(0)
-        postcode_pattern = r'[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2}'
-        multiple_postcodes = re.findall(postcode_pattern, address_text, flags=re.IGNORECASE)
+        # Split address at postcode
+        postcode = postcode_match.group(0).upper()
+        address_parts = address_text[:postcode_match.start()].strip()
+        if address_parts.endswith(","):
+            address_parts = address_parts[:-1]
+
+        # Combine initial address with remaining parts and clean
+        all_parts = [initial_address] + [clean_address_line(p) for p in address_parts.split(",")]
+        # Filter out empty lines and whitespace-only lines
+        all_parts = [p for p in all_parts if p and not p.isspace()]
         
-        postcode = multiple_postcodes[0].upper() if multiple_postcodes else postcode_match
-        
-        names = re.sub(r'\s+', ' ', names)
-        
-        house_parts = house_and_road.split(' ', 1)
-        house = house_parts[0]
-        road = house_parts[1] if len(house_parts) > 1 else ''
+        # Create address dictionary with numbered lines
+        address_dict = {}
+        current_line = 1
+        for part in all_parts:
+            if current_line <= 6 and part:  # Only use up to 6 address lines
+                address_dict[f'address_{current_line}'] = part
+                current_line += 1
+
+        # Add postcode
+        address_dict['postcode'] = postcode
         
         result = {
             'full_names': names,
-            'address': {
-                'house': house_and_road,
-                'road': road,
-                'house_and_road': house_and_road,
-                'city': line1,
-                'county': line2,
-                'line1': line1,
-                'line2': line2,
-                'line3': line3,
-                'postcode': " ".join([pc.upper() for pc in multiple_postcodes]),
-                'all_postcodes': [pc.upper() for pc in multiple_postcodes],
-            }
+            'address': address_dict
         }
         
         logger.debug(f"Successfully extracted information: {result}")

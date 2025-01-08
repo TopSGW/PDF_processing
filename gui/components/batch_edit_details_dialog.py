@@ -16,15 +16,14 @@ class BatchEditDetailsDialog(QDialog):
     # Column indices for easy reference
     COL_DOCUMENT = 0
     COL_NAMES = 1
-    COL_HOUSE_NUMBER = 2
-    COL_CITY = 3
-    COL_COUNTY = 4
-    COL_POSTCODE = 5
-    COL_TYPE = 6
-    COL_STREET = 7
-    COL_ADDR_1 = 8
-    COL_ADDR_2 = 9
-    COL_ADDR_3 = 10
+    COL_ADDR_1 = 2
+    COL_ADDR_2 = 3
+    COL_ADDR_3 = 4
+    COL_ADDR_4 = 5
+    COL_ADDR_5 = 6
+    COL_ADDR_6 = 7
+    COL_POSTCODE = 8
+    COL_TYPE = 9
     
     def __init__(self, documents_info: List[Dict], parent=None) -> None:
         """
@@ -132,7 +131,7 @@ class BatchEditDetailsDialog(QDialog):
         main_layout.addWidget(title_label)
         
         # Description
-        desc_label = QLabel("Edit details for all documents at once. Each row represents a document. You can resize columns by dragging their edges.")
+        desc_label = QLabel("Edit details for all documents at once. Each row represents a document. Enter address lines in order, with the postcode at the end.")
         desc_label.setStyleSheet("font-weight: normal; color: #666;")
         main_layout.addWidget(desc_label)
         
@@ -145,35 +144,33 @@ class BatchEditDetailsDialog(QDialog):
         
         # Create table
         self.table = QTableWidget()
-        self.table.setColumnCount(11)
+        self.table.setColumnCount(10)
         headers = [
             'Document',
             'Names',
-            'House/Number',
-            'City',
-            'County',
+            'Address 1',
+            'Address 2',
+            'Address 3',
+            'Address 4',
+            'Address 5',
+            'Address 6',
             'Postcode',
-            'Type',
-            'Street',
-            'Address Line 1',
-            'Address Line 2',
-            'Address Line 3'
+            'Type'
         ]
         self.table.setHorizontalHeaderLabels(headers)
         
         # Set initial column widths
         default_widths = {
-            self.COL_DOCUMENT: 200,      # Document
-            self.COL_NAMES: 250,         # Names
-            self.COL_HOUSE_NUMBER: 120,  # House/Number
-            self.COL_CITY: 120,          # City
-            self.COL_COUNTY: 120,        # County
-            self.COL_POSTCODE: 100,      # Postcode
-            self.COL_TYPE: 80,           # Type
-            self.COL_STREET: 150,        # Street
-            self.COL_ADDR_1: 150,        # Address Line 1
-            self.COL_ADDR_2: 150,        # Address Line 2
-            self.COL_ADDR_3: 150,        # Address Line 3
+            self.COL_DOCUMENT: 200,    # Document
+            self.COL_NAMES: 250,       # Names
+            self.COL_ADDR_1: 150,      # Address 1
+            self.COL_ADDR_2: 150,      # Address 2
+            self.COL_ADDR_3: 150,      # Address 3
+            self.COL_ADDR_4: 150,      # Address 4
+            self.COL_ADDR_5: 150,      # Address 5
+            self.COL_ADDR_6: 150,      # Address 6
+            self.COL_POSTCODE: 100,    # Postcode
+            self.COL_TYPE: 80,         # Type
         }
         
         # Make all columns interactive (user-resizable)
@@ -199,20 +196,13 @@ class BatchEditDetailsDialog(QDialog):
             # Names
             self.table.setItem(row, self.COL_NAMES, QTableWidgetItem(doc_info['names']))
             
-            # Parse address parts
-            house_parts = doc_info['address'].get('house', '').split(',')
-            house_number = house_parts[0] if house_parts else ''
-            street = house_parts[1].strip() if len(house_parts) > 1 else ''
+            # Address lines 1-6
+            for i in range(6):
+                addr_key = f'address_{i+1}'
+                value = doc_info['address'].get(addr_key, '')
+                self.table.setItem(row, self.COL_ADDR_1 + i, QTableWidgetItem(value))
             
-            # Additional address lines (after house number and street)
-            addr_lines = house_parts[2:] if len(house_parts) > 2 else []
-            
-            # Set house number
-            self.table.setItem(row, self.COL_HOUSE_NUMBER, QTableWidgetItem(house_number))
-            
-            # Set main address fields
-            self.table.setItem(row, self.COL_CITY, QTableWidgetItem(doc_info['address'].get('city', '')))
-            self.table.setItem(row, self.COL_COUNTY, QTableWidgetItem(doc_info['address'].get('county', '')))
+            # Postcode
             self.table.setItem(row, self.COL_POSTCODE, QTableWidgetItem(doc_info['address'].get('postcode', '')))
             
             # Type (non-editable)
@@ -220,14 +210,6 @@ class BatchEditDetailsDialog(QDialog):
             type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
             type_item.setBackground(QColor('#f8f9fa'))
             self.table.setItem(row, self.COL_TYPE, type_item)
-            
-            # Set street
-            self.table.setItem(row, self.COL_STREET, QTableWidgetItem(street))
-            
-            # Set additional address lines
-            for i in range(3):
-                value = addr_lines[i].strip() if i < len(addr_lines) else ''
-                self.table.setItem(row, self.COL_ADDR_1 + i, QTableWidgetItem(value))
         
         # Create scroll area for table
         scroll_area = QScrollArea()
@@ -309,62 +291,31 @@ class BatchEditDetailsDialog(QDialog):
             # Reset names
             self.table.item(row, self.COL_NAMES).setText(doc_info['names'])
             
-            # Parse address parts
-            house_parts = doc_info['address'].get('house', '').split(',')
-            house_number = house_parts[0] if house_parts else ''
-            street = house_parts[1].strip() if len(house_parts) > 1 else ''
-            addr_lines = house_parts[2:] if len(house_parts) > 2 else []
-            
-            # Reset house number and street
-            self.table.item(row, self.COL_HOUSE_NUMBER).setText(house_number)
-            self.table.item(row, self.COL_STREET).setText(street)
-            
-            # Reset main address fields
-            self.table.item(row, self.COL_CITY).setText(doc_info['address'].get('city', ''))
-            self.table.item(row, self.COL_COUNTY).setText(doc_info['address'].get('county', ''))
-            self.table.item(row, self.COL_POSTCODE).setText(doc_info['address'].get('postcode', ''))
-            
-            # Reset additional address lines
-            for i in range(3):
-                value = addr_lines[i].strip() if i < len(addr_lines) else ''
+            # Reset address lines 1-6
+            for i in range(6):
+                addr_key = f'address_{i+1}'
+                value = doc_info['address'].get(addr_key, '')
                 self.table.item(row, self.COL_ADDR_1 + i).setText(value)
+            
+            # Reset postcode
+            self.table.item(row, self.COL_POSTCODE).setText(doc_info['address'].get('postcode', ''))
         
     def save_values(self) -> None:
         """Save current values from the table."""
         self.edited_values = []
         
         for row in range(self.table.rowCount()):
-            # Create address dictionary with all components
+            # Create address dictionary
             address = {
-                'house': '',  # Will be built from parts
-                'city': self.table.item(row, self.COL_CITY).text().strip(),
-                'county': self.table.item(row, self.COL_COUNTY).text().strip(),
                 'postcode': self.table.item(row, self.COL_POSTCODE).text().strip().upper()
             }
             
-            # Build house string from components
-            house_parts = []
-            
-            # Add house number if not empty
-            house_number = self.table.item(row, self.COL_HOUSE_NUMBER).text().strip()
-            if house_number:
-                house_parts.append(house_number)
-            
-            # Add street if not empty
-            street = self.table.item(row, self.COL_STREET).text().strip()
-            if street:
-                house_parts.append(street)
-            
-            # Add additional address lines if not empty
-            for i in range(3):
-                line = self.table.item(row, self.COL_ADDR_1 + i).text().strip()
-                if line:
-                    house_parts.append(line)
-                # Also add to address dict for filename generation
-                address[f'address_line_{i+1}'] = line
-            
-            # Set the complete house string
-            address['house'] = ", ".join(house_parts)
+            # Add address lines 1-6
+            for i in range(6):
+                addr_key = f'address_{i+1}'
+                value = self.table.item(row, self.COL_ADDR_1 + i).text().strip()
+                if value:  # Only add non-empty lines
+                    address[addr_key] = value
             
             # Add to edited values
             self.edited_values.append({

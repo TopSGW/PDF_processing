@@ -59,28 +59,28 @@ def format_address(address_dict: dict) -> str:
             raise FormattingError("Invalid address dictionary")
         
         address_parts = []
+        postcode = ""
         
-        # Add house/number if it exists
-        if address_dict.get('house'):
-            address_parts.append(address_dict['house'])
-        
-        # Add any additional address lines that exist and are not empty
-        for i in range(1, 7):  # Address lines 1-6
-            line_key = f'address_line_{i}'
-            if line_key in address_dict and address_dict[line_key]:
-                address_parts.append(address_dict[line_key])
-        
-        # Add city, county, and postcode
-        if address_dict.get('city'):
-            address_parts.append(address_dict['city'])
-            
-        if address_dict.get('county'):
-            address_parts.append(address_dict['county'])
-        elif 'county' not in address_dict:
-            address_parts.append('')
-            
+        # Extract postcode if it exists
         if address_dict.get('postcode'):
-            address_parts.append(address_dict['postcode'])
+            postcode = address_dict['postcode'].strip()
+        
+        # Process address lines 1-6
+        for i in range(1, 7):
+            line_key = f'address_{i}'
+            if line_key in address_dict and address_dict[line_key]:
+                # Split the line by commas and take the first part
+                line_parts = address_dict[line_key].split(',')
+                if line_parts:
+                    address_parts.append(line_parts[0].strip())
+                    # If there are more parts, add them as new lines
+                    for part in line_parts[1:]:
+                        if len(address_parts) < 6:  # Only add if we haven't reached 6 lines
+                            address_parts.append(part.strip())
+        
+        # Add postcode at the end if it exists
+        if postcode:
+            address_parts.append(postcode)
         
         # Filter out empty parts and join with newlines
         return '\n'.join(part for part in address_parts if part)
@@ -107,19 +107,13 @@ def generate_filename(address_dict: dict) -> str:
         
         filename_parts = []
         
-        # Add house/number if it exists
-        if address_dict.get('house'):
-            filename_parts.append(sanitize_component(address_dict['house']))
-        
-        # Add city if it exists
-        if address_dict.get('city'):
-            filename_parts.append(sanitize_component(address_dict['city']))
-            
-        # Add county if it exists, default to Surrey if not present
-        if address_dict.get('county'):
-            filename_parts.append(sanitize_component(address_dict['county']))
-        elif 'county' not in address_dict:
-            filename_parts.append('')
+        # Add all address lines in order
+        for i in range(1, 7):
+            addr_key = f'address_{i}'
+            if addr_key in address_dict and address_dict[addr_key]:
+                part = sanitize_component(address_dict[addr_key])
+                if part:
+                    filename_parts.append(part)
             
         # Add postcode if it exists
         if address_dict.get('postcode'):
