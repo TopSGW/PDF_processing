@@ -279,7 +279,7 @@ class LetterSection(QFrame):
                         
                         if original_doc:
                             # Generate main letter using edited values
-                            letter_content, suggested_filename = generate_letter(
+                            letter_content, _ = generate_letter(
                                 original_doc['content'],
                                 letter_type=edited_info['type'],
                                 page_count=original_doc['page_count'],
@@ -295,12 +295,15 @@ class LetterSection(QFrame):
                                 override_address=edited_info['address']
                             )
                             
+                            # Generate filename from edited values
+                            filename = generate_filename(edited_info['address'])
+                            
                             # Save paths
                             doc_path = original_doc['path']
                             save_dir = doc_path.parent
                             
                             # Create base filename without extension
-                            base_filename = suggested_filename
+                            base_filename = filename
                             if base_filename.lower().endswith('.pdf'):
                                 base_filename = base_filename[:-4]
                             
