@@ -10,22 +10,35 @@ def format_names(full_names: str) -> tuple:
     try:
         if not full_names:
             raise FormattingError("Names string is empty")
-            
-        header_names = full_names.replace(' AND ', ' & ').replace(' and ', ' & ')
         
-        first_names = []
+        # Convert names to title case (first letter capital)
+        def title_case(name):
+            # Split on spaces and hyphens to handle hyphenated names
+            parts = re.split(r'([-\s])', name.lower())
+            # Capitalize first letter of each part, keeping separators unchanged
+            return ''.join(p.capitalize() if i % 2 == 0 else p for i, p in enumerate(parts))
+        
+        # Split names and convert each to title case
+        names_list = []
         for name in re.split(' AND | & ', full_names):
             name = name.strip()
-            if not name:
-                continue
-            name_parts = name.split()
-            if not name_parts:
-                continue
-            first_names.append(name_parts[0])
+            if name:
+                names_list.append(title_case(name))
         
-        if not first_names:
+        if not names_list:
             raise FormattingError("No valid names found")
         
+        # Join with & for header
+        header_names = ' & '.join(names_list)
+        
+        # Get first names for salutation
+        first_names = []
+        for name in names_list:
+            name_parts = name.split()
+            if name_parts:
+                first_names.append(name_parts[0])
+        
+        # Format salutation
         if len(first_names) == 2:
             salutation_names = f"{first_names[0]} and {first_names[1]}"
         elif len(first_names) > 2:
@@ -95,27 +108,25 @@ def generate_filename(address_dict: dict) -> str:
         filename_parts = []
         
         # Add house/number if it exists
-        house = sanitize_component(address_dict.get('house', ''))
-        if house:
-            filename_parts.append(house)
+        if address_dict.get('house'):
+            filename_parts.append(sanitize_component(address_dict['house']))
         
         # Add city if it exists
-        city = sanitize_component(address_dict.get('city', ''))
-        if city:
-            filename_parts.append(city)
+        if address_dict.get('city'):
+            filename_parts.append(sanitize_component(address_dict['city']))
             
-        # Add county only if it exists and is not empty
-        county = sanitize_component(address_dict.get('county', ''))
-        if county:
-            filename_parts.append(county)
+        # Add county if it exists, default to Surrey if not present
+        if address_dict.get('county'):
+            filename_parts.append(sanitize_component(address_dict['county']))
+        elif 'county' not in address_dict:
+            filename_parts.append('')
             
         # Add postcode if it exists
-        postcode = sanitize_component(address_dict.get('postcode', ''))
-        if postcode:
-            filename_parts.append(postcode)
+        if address_dict.get('postcode'):
+            filename_parts.append(sanitize_component(address_dict['postcode']))
         
         # Filter out empty parts and join with commas
-        filename = ", ".join(filename_parts)
+        filename = ", ".join(part for part in filename_parts if part)
         
         # Ensure the filename ends with .pdf
         if not filename.lower().endswith('.pdf'):
