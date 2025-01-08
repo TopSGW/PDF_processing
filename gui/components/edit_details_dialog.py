@@ -2,34 +2,11 @@
 import re
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-    QLineEdit, QPushButton, QFormLayout, QWidget,
-    QStyle, QFrame, QMessageBox
+    QPushButton, QFrame, QMessageBox, QTableWidget,
+    QTableWidgetItem, QHeaderView, QStyle
 )
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QFont, QPalette, QColor
-
-class StyledLineEdit(QLineEdit):
-    """Custom styled line edit with validation."""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setMinimumHeight(30)
-        self.setStyleSheet("""
-            QLineEdit {
-                border: 2px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 5px 10px;
-                background-color: white;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #4a90e2;
-                background-color: #f8f9fa;
-            }
-            QLineEdit:hover {
-                border: 2px solid #4a90e2;
-            }
-        """)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 
 class EditDetailsDialog(QDialog):
     """Dialog for editing extracted details before letter generation."""
@@ -39,28 +16,12 @@ class EditDetailsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Edit Letter Details")
         self.setModal(True)
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
         
         # Store original values
         self.original_names = names
         self.original_address = address
-        
-        # Initialize UI components with custom styling
-        self.names_edit = StyledLineEdit(names)
-        self.house_edit = StyledLineEdit(address.get('house', ''))
-        self.city_edit = StyledLineEdit(address.get('city', ''))
-        self.county_edit = StyledLineEdit(address.get('county', ''))
-        self.postcode_edit = StyledLineEdit(address.get('postcode', ''))
-        
-        # Set tooltips
-        self.names_edit.setToolTip("Enter full names separated by '&' or 'and'")
-        self.house_edit.setToolTip("Enter house name/number and street")
-        self.city_edit.setToolTip("Enter city or town name")
-        self.county_edit.setToolTip("Enter county name")
-        self.postcode_edit.setToolTip("Enter valid UK postcode")
-        
-        # Add validation
-        self.postcode_edit.textChanged.connect(self.validate_postcode)
         
         self.init_ui()
         
@@ -107,6 +68,25 @@ class EditDetailsDialog(QDialog):
             QPushButton#danger:hover {
                 background-color: #c82333;
             }
+            QTableWidget {
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                background-color: white;
+                gridline-color: #e0e0e0;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #e3f2fd;
+                color: black;
+            }
+            QHeaderView::section {
+                background-color: #f8f9fa;
+                padding: 5px;
+                border: 1px solid #e0e0e0;
+                font-weight: bold;
+            }
         """)
         
         main_layout = QVBoxLayout()
@@ -130,26 +110,42 @@ class EditDetailsDialog(QDialog):
         separator.setStyleSheet("background-color: #e0e0e0;")
         main_layout.addWidget(separator)
         
-        # Create form layout for the fields
-        form_layout = QFormLayout()
-        form_layout.setSpacing(15)
-        form_layout.setLabelAlignment(Qt.AlignRight)
+        # Create table
+        self.table = QTableWidget()
+        self.table.setColumnCount(2)
+        self.table.setHorizontalHeaderLabels(['Field', 'Value'])
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
         
-        # Add fields with labels
-        form_layout.addRow("Names:", self.names_edit)
-        form_layout.addRow("House/Street:", self.house_edit)
-        form_layout.addRow("City:", self.city_edit)
-        form_layout.addRow("County:", self.county_edit)
-        form_layout.addRow("Postcode:", self.postcode_edit)
+        # Add rows
+        rows = [
+            ('Names', self.original_names),
+            ('House/Number', self.original_address.get('house', '').split(',')[0] if self.original_address.get('house') else ''),
+            ('Street', self.original_address.get('house', '').split(',')[1] if self.original_address.get('house') and len(self.original_address.get('house').split(',')) > 1 else ''),
+            ('Address Line 1', ''),
+            ('Address Line 2', ''),
+            ('Address Line 3', ''),
+            ('Address Line 4', ''),
+            ('Address Line 5', ''),
+            ('Address Line 6', ''),
+            ('City', self.original_address.get('city', '')),
+            ('County', self.original_address.get('county', '')),
+            ('Postcode', self.original_address.get('postcode', ''))
+        ]
         
-        main_layout.addLayout(form_layout)
+        self.table.setRowCount(len(rows))
+        for i, (field, value) in enumerate(rows):
+            field_item = QTableWidgetItem(field)
+            field_item.setFlags(field_item.flags() & ~Qt.ItemIsEditable)  # Make field name non-editable
+            field_item.setBackground(QColor('#f8f9fa'))
+            
+            value_item = QTableWidgetItem(value)
+            
+            self.table.setItem(i, 0, field_item)
+            self.table.setItem(i, 1, value_item)
         
-        # Add another separator
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.HLine)
-        separator2.setFrameShadow(QFrame.Sunken)
-        separator2.setStyleSheet("background-color: #e0e0e0;")
-        main_layout.addWidget(separator2)
+        main_layout.addWidget(self.table)
         
         # Button layout
         button_layout = QHBoxLayout()
@@ -183,52 +179,23 @@ class EditDetailsDialog(QDialog):
         
         self.setLayout(main_layout)
         
-    def validate_postcode(self) -> None:
-        """Validate postcode format and provide visual feedback."""
-        postcode = self.postcode_edit.text().strip().upper()
-        # Basic UK postcode validation
+    def validate_postcode(self, postcode: str) -> bool:
+        """Validate postcode format."""
+        postcode = postcode.strip().upper()
         postcode_pattern = r'^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$'
-        
-        if postcode and not re.match(postcode_pattern, postcode):
-            self.postcode_edit.setStyleSheet("""
-                QLineEdit {
-                    border: 2px solid #dc3545;
-                    border-radius: 5px;
-                    padding: 5px 10px;
-                    background-color: #fff8f8;
-                }
-            """)
-        else:
-            self.postcode_edit.setStyleSheet("""
-                QLineEdit {
-                    border: 2px solid #28a745;
-                    border-radius: 5px;
-                    padding: 5px 10px;
-                    background-color: #f8fff8;
-                }
-            """)
+        return bool(re.match(postcode_pattern, postcode))
             
     def validate_and_accept(self) -> None:
         """Validate all fields before accepting."""
-        if not self.names_edit.text().strip():
+        # Get values from table
+        names = self.table.item(0, 1).text().strip()
+        postcode = self.table.item(11, 1).text().strip()
+        
+        if not names:
             QMessageBox.warning(self, "Validation Error", "Names field cannot be empty.")
             return
             
-        if not self.house_edit.text().strip():
-            QMessageBox.warning(self, "Validation Error", "House/Street field cannot be empty.")
-            return
-            
-        if not self.city_edit.text().strip():
-            QMessageBox.warning(self, "Validation Error", "City field cannot be empty.")
-            return
-            
-        if not self.county_edit.text().strip():
-            QMessageBox.warning(self, "Validation Error", "County field cannot be empty.")
-            return
-            
-        postcode = self.postcode_edit.text().strip().upper()
-        postcode_pattern = r'^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$'
-        if not re.match(postcode_pattern, postcode):
+        if not self.validate_postcode(postcode):
             QMessageBox.warning(self, "Validation Error", "Please enter a valid UK postcode.")
             return
             
@@ -236,19 +203,49 @@ class EditDetailsDialog(QDialog):
         
     def reset_values(self) -> None:
         """Reset all fields to their original values."""
-        self.names_edit.setText(self.original_names)
-        self.house_edit.setText(self.original_address.get('house', ''))
-        self.city_edit.setText(self.original_address.get('city', ''))
-        self.county_edit.setText(self.original_address.get('county', ''))
-        self.postcode_edit.setText(self.original_address.get('postcode', ''))
+        rows = [
+            ('Names', self.original_names),
+            ('House/Number', self.original_address.get('house', '').split(',')[0] if self.original_address.get('house') else ''),
+            ('Street', self.original_address.get('house', '').split(',')[1] if self.original_address.get('house') and len(self.original_address.get('house').split(',')) > 1 else ''),
+            ('Address Line 1', ''),
+            ('Address Line 2', ''),
+            ('Address Line 3', ''),
+            ('Address Line 4', ''),
+            ('Address Line 5', ''),
+            ('Address Line 6', ''),
+            ('City', self.original_address.get('city', '')),
+            ('County', self.original_address.get('county', '')),
+            ('Postcode', self.original_address.get('postcode', ''))
+        ]
+        
+        for i, (_, value) in enumerate(rows):
+            self.table.item(i, 1).setText(value)
         
     def get_values(self) -> tuple:
         """Get the current values from the dialog."""
-        names = self.names_edit.text().strip()
+        names = self.table.item(0, 1).text().strip()
+        
+        # Combine house/number and street
+        house_number = self.table.item(1, 1).text().strip()
+        street = self.table.item(2, 1).text().strip()
+        house = f"{house_number}, {street}" if street else house_number
+        
+        # Get additional address lines
+        address_lines = []
+        for i in range(3, 9):  # Address Line 1-6
+            line = self.table.item(i, 1).text().strip()
+            if line:
+                address_lines.append(line)
+        
+        # If there are additional address lines, append them to house
+        if address_lines:
+            house = f"{house}, {', '.join(address_lines)}"
+        
         address = {
-            'house': self.house_edit.text().strip(),
-            'city': self.city_edit.text().strip(),
-            'county': self.county_edit.text().strip(),
-            'postcode': self.postcode_edit.text().strip().upper()
+            'house': house,
+            'city': self.table.item(9, 1).text().strip(),
+            'county': self.table.item(10, 1).text().strip(),
+            'postcode': self.table.item(11, 1).text().strip().upper()
         }
+        
         return names, address

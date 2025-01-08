@@ -2,7 +2,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 from num2words import num2words
 
 import fitz
@@ -18,9 +18,19 @@ from constants import (
     GENERATE_LETTER_SUCCESS,
     LETTER_SAVE_DIALOG
 )
-from letter_generator import WayleaveLetterGenerator
+from letter_generator import (
+    generate_letter,
+    generate_second_letter,
+    create_word_letter,
+    convert_pdf_letter,
+    extract_names_and_address_annual,
+    extract_names_and_address_fifteen_year,
+    format_names,
+    format_address,
+    generate_filename
+)
 from pdf_scanner import PDFContent
-from gui.components.edit_details_dialog import EditDetailsDialog
+from gui.components.batch_edit_details_dialog import BatchEditDetailsDialog
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +93,14 @@ class StyledButton(QPushButton):
 class LetterSection(QFrame):
     """Letter generation section of the application."""
 
-    def __init__(self, letter_generator: WayleaveLetterGenerator, progress_callback=None) -> None:
+    def __init__(self, progress_callback=None) -> None:
         """
         Initialize the letter section.
         
         Args:
-            letter_generator: Instance of WayleaveLetterGenerator for creating letters
             progress_callback: Callback to update progress UI
         """
         super().__init__()
-        self.letter_generator = letter_generator
         self.selected_folder: Optional[Path] = None
         self.progress_callback = progress_callback
         
@@ -133,7 +141,7 @@ class LetterSection(QFrame):
         layout.addWidget(title_label)
         
         # Add description
-        desc_label = QLabel("Generate letters for all selected documents. You can edit the details before each letter is created.")
+        desc_label = QLabel("Generate letters for all selected documents. You can edit all details at once before letters are created.")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
         
@@ -185,161 +193,163 @@ class LetterSection(QFrame):
 
             # Count total documents to process
             total_docs = 0
+            documents_info = []
+            
+            # First pass: collect all document information
             for i in range(self.result_tree.topLevelItemCount()):
                 folder_item = self.result_tree.topLevelItem(i)
                 for j in range(folder_item.childCount()):
-                    if "(Document)" in folder_item.child(j).text(0):
+                    child = folder_item.child(j)
+                    if "(Document)" in child.text(0):
                         total_docs += 1
+                        doc_path = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
+                        
+                        # Get wayleave type from tooltip
+                        tooltip = child.toolTip(0)
+                        wayleave_type = "annual"
+                        if "Wayleave Type: " in tooltip:
+                            wayleave_type = tooltip.split("Wayleave Type: ")[1]
+                        
+                        if doc_path.exists():
+                            try:
+                                # Extract content from PDF
+                                content = PDFContent.extract_text_content(doc_path)
+                                
+                                if content:
+                                    # Extract initial details based on type
+                                    if wayleave_type == "annual":
+                                        info = extract_names_and_address_annual(content)
+                                    else:
+                                        info = extract_names_and_address_fifteen_year(content)
+                                    
+                                    # Add to documents info
+                                    documents_info.append({
+                                        'filename': doc_path.name,
+                                        'path': doc_path,
+                                        'names': info['full_names'],
+                                        'address': info['address'],
+                                        'type': wayleave_type,
+                                        'content': content,
+                                        'page_count': PDFContent.get_page_count(doc_path)
+                                    })
+                            except Exception as e:
+                                logger.error(f"Error extracting info from {doc_path.name}: {e}")
 
             if total_docs == 0:
                 QMessageBox.warning(self, "No Documents", "No documents found to process.")
                 return
 
-            # Update progress
-            self.update_progress(0, total_docs, "Starting letter generation...")
+            if not documents_info:
+                QMessageBox.warning(self, "Error", "Could not extract information from any documents.")
+                return
 
-            success_count = 0
-            error_count = 0
-            error_messages = []
-            generated_letters = []
+            # Show batch edit dialog
+            dialog = BatchEditDetailsDialog(documents_info, self)
+            if dialog.exec_() == BatchEditDetailsDialog.Accepted:
+                # Get edited values
+                edited_docs = dialog.get_values()
+                
+                # Update progress
+                self.update_progress(0, total_docs, "Starting letter generation...")
 
-            # Disable buttons during processing
-            self.create_all_letters_btn.setEnabled(False)
-            if self.merge_btn:
-                self.merge_btn.setEnabled(False)
+                success_count = 0
+                error_count = 0
+                error_messages = []
+                generated_letters = []
 
-            # Iterate through all folders
-            current_doc = 0
-            for i in range(self.result_tree.topLevelItemCount()):
-                folder_item = self.result_tree.topLevelItem(i)
-                
-                # Find document PDF in this folder
-                doc_pdf = None
-                wayleave_type = None
-                
-                for j in range(folder_item.childCount()):
-                    child = folder_item.child(j)
-                    if "(Document)" in child.text(0):
-                        doc_pdf = Path(child.toolTip(0).replace("Full path: ", "").split("\n")[0])
-                        # Get wayleave type from tooltip
-                        tooltip = child.toolTip(0)
-                        if "Wayleave Type: " in tooltip:
-                            wayleave_type = tooltip.split("Wayleave Type: ")[1]
-                        break
-                
-                if doc_pdf and doc_pdf.exists():
+                # Disable buttons during processing
+                self.create_all_letters_btn.setEnabled(False)
+                if self.merge_btn:
+                    self.merge_btn.setEnabled(False)
+
+                # Process each document with edited values
+                for current_doc, edited_info in enumerate(edited_docs, 1):
                     try:
-                        current_doc += 1
                         self.update_progress(
                             current_doc,
                             total_docs,
-                            f"Processing document {current_doc} of {total_docs}: {doc_pdf.name}"
+                            f"Processing document {current_doc} of {total_docs}: {edited_info['filename']}"
                         )
 
-                        # Extract content from PDF
-                        content = PDFContent.extract_text_content(doc_pdf)
-                        page_count = PDFContent.get_page_count(doc_pdf)
+                        # Find original document info
+                        original_doc = next(
+                            (doc for doc in documents_info if doc['filename'] == edited_info['filename']),
+                            None
+                        )
                         
-                        if content:
-                            # Determine letter type based on the document content
-                            letter_type = wayleave_type if wayleave_type in ["annual", "15-year"] else "annual"
+                        if original_doc:
+                            # Generate main letter using edited values
+                            letter_content, suggested_filename = generate_letter(
+                                original_doc['content'],
+                                letter_type=edited_info['type'],
+                                page_count=original_doc['page_count'],
+                                override_names=edited_info['names'],
+                                override_address=edited_info['address']
+                            )
                             
-                            # Extract initial details
-                            if letter_type == "annual":
-                                info = self.letter_generator.extract_names_and_address_annual(content)
-                            else:
-                                info = self.letter_generator.extract_names_and_address_fifteen_year(content)
+                            # Generate second letter using edited values
+                            second_letter_content, _ = generate_second_letter(
+                                original_doc['content'],
+                                letter_type=edited_info['type'],
+                                override_names=edited_info['names'],
+                                override_address=edited_info['address']
+                            )
                             
-                            # Show edit dialog
-                            dialog = EditDetailsDialog(info['full_names'], info['address'], self)
-                            if dialog.exec_() == EditDetailsDialog.Accepted:
-                                # Get edited values
-                                edited_names, edited_address = dialog.get_values()
-                                info['full_names'] = edited_names
-                                info['address'] = edited_address
-                                
-                                # Format the edited details
-                                header_names, salutation_names = self.letter_generator.format_names(edited_names)
-                                formatted_address = self.letter_generator.format_address(edited_address)
-                                
-                                # Generate letter content with edited details
-                                letter_content = self.letter_generator.annual_letter_template if letter_type == "annual" else self.letter_generator.fifteen_year_letter_template
-                                current_date = datetime.now().strftime("%d %B %Y")
-                                page_counts = (page_count - 1) if letter_type == "annual" else page_count
-                                sign_page = num2words(page_counts, to="ordinal").upper()
-                                
-                                letter_content = letter_content.format(
-                                    current_date,
-                                    f"{header_names}\n{formatted_address}",
-                                    salutation_names,
-                                    sign_page
-                                )
+                            # Save paths
+                            doc_path = original_doc['path']
+                            save_path = doc_path.parent / suggested_filename
+                            docx_save_path = save_path.with_suffix('.docx')
+                            second_letter_path = doc_path.parent / "Wayleave and Cheque Enclosed - Good Printer.docx"
+                            
+                            # Generate documents
+                            create_word_letter(letter_content, docx_save_path)
+                            convert_pdf_letter(letter_content, save_path)
+                            create_word_letter(second_letter_content, second_letter_path)
 
-                                second_template = self.letter_generator.second_letter_template
-                                second_letter_content = second_template.format(
-                                    current_date,
-                                    f"{header_names}\n{formatted_address}",
-                                    salutation_names,
-                                )
-                                # Generate filename from edited address
-                                suggested_filename = self.letter_generator.generate_filename(edited_address)
-                                save_path = doc_pdf.parent / suggested_filename
-                                
-                                # Generate PDF letter
-                                self.letter_generator.convert_pdf_letter(letter_content, save_path)
-
-                                # Create Word document
-                                docx_filename = suggested_filename.replace(".pdf", ".docx")
-                                docx_save_path = doc_pdf.parent / docx_filename
-                                self.letter_generator.create_word_letter(letter_content, docx_save_path)
-                                
-                                second_letter_path = doc_pdf.parent / "Wayleave and Cheque Enclosed - Good Printer.docx"
-                                self.letter_generator.create_word_letter(second_letter_content, second_letter_path)
-
-                                success_count += 1
-                                generated_letters.append(save_path)
+                            success_count += 1
+                            generated_letters.append(save_path)
                             
                     except Exception as e:
                         error_count += 1
-                        error_messages.append(f"Error processing {doc_pdf.name}: {str(e)}")
+                        error_messages.append(f"Error processing {edited_info['filename']}: {str(e)}")
             
-            if generated_letters:
-                self.update_progress(total_docs, total_docs, "Merging generated letters...")
-                try:
-                    merged_path = self.selected_folder / "Print 2.pdf"
-                    merged_doc = fitz.open()
-                    
-                    for letter_pdf in generated_letters:
-                        with fitz.open(letter_pdf) as src_doc:
-                            merged_doc.insert_pdf(src_doc)
-                    
-                    # optionally flatten / deflate if needed
-                    merged_doc.save(merged_path, deflate=True, garbage=4)
-                    merged_doc.close()
-                except Exception as merge_err:
-                    logger.error(f"Error merging final PDF: {merge_err}")
-                    error_messages.append(f"Error merging final PDF: {merge_err}")
+                if generated_letters:
+                    self.update_progress(total_docs, total_docs, "Merging generated letters...")
+                    try:
+                        merged_path = self.selected_folder / "Print 2.pdf"
+                        merged_doc = fitz.open()
+                        
+                        for letter_pdf in generated_letters:
+                            with fitz.open(letter_pdf) as src_doc:
+                                merged_doc.insert_pdf(src_doc)
+                        
+                        # optionally flatten / deflate if needed
+                        merged_doc.save(merged_path, deflate=True, garbage=4)
+                        merged_doc.close()
+                    except Exception as merge_err:
+                        logger.error(f"Error merging final PDF: {merge_err}")
+                        error_messages.append(f"Error merging final PDF: {merge_err}")
 
-            # Hide progress
-            self.update_progress(0, 0, "")
+                # Hide progress
+                self.update_progress(0, 0, "")
 
-            # Re-enable buttons
-            self.create_all_letters_btn.setEnabled(True)
-            if self.merge_btn:
-                self.merge_btn.setEnabled(True)
+                # Re-enable buttons
+                self.create_all_letters_btn.setEnabled(True)
+                if self.merge_btn:
+                    self.merge_btn.setEnabled(True)
 
-            # Show summary message
-            message = f"Letter Generation Complete\n\n"
-            message += f"Successfully generated: {success_count} letters\n"
-            if error_count > 0:
-                message += f"Errors encountered: {error_count}\n\n"
-                message += "Error Details:\n" + "\n".join(error_messages)
-            
-            QMessageBox.information(
-                self,
-                "Generate Letters Results",
-                message
-            )
+                # Show summary message
+                message = f"Letter Generation Complete\n\n"
+                message += f"Successfully generated: {success_count} letters\n"
+                if error_count > 0:
+                    message += f"Errors encountered: {error_count}\n\n"
+                    message += "Error Details:\n" + "\n".join(error_messages)
+                
+                QMessageBox.information(
+                    self,
+                    "Generate Letters Results",
+                    message
+                )
             
         except Exception as e:
             logger.error(f"Error generating letters: {e}")

@@ -11,7 +11,14 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
 from constants import WINDOW_TITLE, MERGE_AND_COMPRESS_PDFS
-from letter_generator import WayleaveLetterGenerator
+from letter_generator import (
+    generate_letter,
+    generate_second_letter,
+    create_word_letter,
+    convert_pdf_letter,
+    extract_names_and_address_annual,
+    extract_names_and_address_fifteen_year
+)
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
 from gui.components.header_section import HeaderSection
 from gui.components.progress_section import ProgressSection
@@ -35,7 +42,6 @@ class MainWindow(QWidget):
         super().__init__()
         self.scanner_thread: Optional[ScannerThread] = None
         self.selected_folder: Optional[Path] = None
-        self.letter_generator = WayleaveLetterGenerator()
         
         # Initialize components
         self.header_section = HeaderSection(self.on_folder_selected)
@@ -53,7 +59,6 @@ class MainWindow(QWidget):
         
         # Initialize letter section with progress callback
         self.letter_section = LetterSection(
-            self.letter_generator,
             self.update_progress
         )
         
