@@ -297,17 +297,25 @@ class LetterSection(QFrame):
                             
                             # Save paths
                             doc_path = original_doc['path']
-                            save_path = doc_path.parent / suggested_filename
-                            docx_save_path = save_path.with_suffix('.docx')
-                            second_letter_path = doc_path.parent / "Wayleave and Cheque Enclosed - Good Printer.docx"
+                            save_dir = doc_path.parent
+                            
+                            # Create base filename without extension
+                            base_filename = suggested_filename
+                            if base_filename.lower().endswith('.pdf'):
+                                base_filename = base_filename[:-4]
+                            
+                            # Create paths with correct extensions
+                            docx_path = save_dir / f"{base_filename}.docx"
+                            pdf_path = save_dir / f"{base_filename}.pdf"
+                            second_letter_path = save_dir / "Wayleave and Cheque Enclosed - Good Printer.docx"
                             
                             # Generate documents
-                            create_word_letter(letter_content, docx_save_path)
-                            convert_pdf_letter(letter_content, save_path)
+                            create_word_letter(letter_content, docx_path)
+                            convert_pdf_letter(letter_content, pdf_path)
                             create_word_letter(second_letter_content, second_letter_path)
 
                             success_count += 1
-                            generated_letters.append(save_path)
+                            generated_letters.append(pdf_path)
                             
                     except Exception as e:
                         error_count += 1
@@ -320,11 +328,11 @@ class LetterSection(QFrame):
                         merged_doc = fitz.open()
                         
                         for letter_pdf in generated_letters:
-                            with fitz.open(letter_pdf) as src_doc:
+                            with fitz.open(str(letter_pdf)) as src_doc:
                                 merged_doc.insert_pdf(src_doc)
                         
                         # optionally flatten / deflate if needed
-                        merged_doc.save(merged_path, deflate=True, garbage=4)
+                        merged_doc.save(str(merged_path), deflate=True, garbage=4)
                         merged_doc.close()
                     except Exception as merge_err:
                         logger.error(f"Error merging final PDF: {merge_err}")

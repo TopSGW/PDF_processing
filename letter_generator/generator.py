@@ -143,22 +143,18 @@ def create_word_letter(letter_content: str, output_path: Path, company_footer: s
 def convert_pdf_letter(letter_content: str, output_path: Path) -> None:
     """Convert Word letter to PDF."""
     try:
-        # Create temporary docx with same name as final PDF
-        temp_docx_path = output_path.with_suffix('.docx')
+        # Create Word document with same name as final PDF
+        docx_path = output_path.with_suffix('.docx')
         
         # Create Word document
-        create_word_letter(letter_content, temp_docx_path)
+        create_word_letter(letter_content, docx_path)
         
-        # Convert to PDF using the same name
-        convert(str(temp_docx_path), str(output_path))
+        # Convert to PDF
+        convert(str(docx_path), str(output_path))
         
-        # Clean up temporary docx file
-        if temp_docx_path.exists():
-            temp_docx_path.unlink()
+        # Note: We no longer delete the docx file
             
     except Exception as e:
-        if 'temp_docx_path' in locals() and temp_docx_path.exists():
-            temp_docx_path.unlink()
         raise GenerationError(f"Error creating PDF: {str(e)}")
 
 def generate_letter(
