@@ -169,7 +169,7 @@ class BatchEditDetailsDialog(QDialog):
             self.COL_ADDR_4: 150,      # Address 4
             self.COL_ADDR_5: 150,      # Address 5
             self.COL_ADDR_6: 150,      # Address 6
-            self.COL_POSTCODE: 100,    # Postcode
+            self.COL_POSTCODE: 200,    # Increased postcode width significantly
             self.COL_TYPE: 80,         # Type
         }
         
@@ -202,14 +202,23 @@ class BatchEditDetailsDialog(QDialog):
                 value = doc_info['address'].get(addr_key, '')
                 self.table.setItem(row, self.COL_ADDR_1 + i, QTableWidgetItem(value))
             
-            # Postcode
-            self.table.setItem(row, self.COL_POSTCODE, QTableWidgetItem(doc_info['address'].get('postcode', '')))
+            # Postcode with special handling
+            postcode = doc_info['address'].get('postcode', '')
+            postcode = postcode.replace('\n', '')
+            postcode_item = QTableWidgetItem(postcode)
+            postcode_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            # Set flags to show full content
+            postcode_item.setFlags(postcode_item.flags() | Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable)
+            self.table.setItem(row, self.COL_POSTCODE, postcode_item)
             
             # Type (non-editable)
             type_item = QTableWidgetItem(doc_info.get('type', 'annual'))
             type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
             type_item.setBackground(QColor('#f8f9fa'))
             self.table.setItem(row, self.COL_TYPE, type_item)
+        
+        # Set word wrap mode for the table
+        self.table.setWordWrap(False)
         
         # Create scroll area for table
         scroll_area = QScrollArea()
