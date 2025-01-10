@@ -222,11 +222,12 @@ class LetterSection(QFrame):
                                     else:
                                         info = extract_names_and_address_fifteen_year(content)
                                     
-                                    # Add to documents info
+                                    # Add to documents info with second name
                                     documents_info.append({
                                         'filename': doc_path.name,
                                         'path': doc_path,
                                         'names': info['full_names'],
+                                        'second_name': info['full_names'].split()[0] if info['full_names'] else '',
                                         'address': info['address'],
                                         'type': wayleave_type,
                                         'content': content,
@@ -284,7 +285,8 @@ class LetterSection(QFrame):
                                 letter_type=edited_info['type'],
                                 page_count=original_doc['page_count'],
                                 override_names=edited_info['names'],
-                                override_address=edited_info['address']
+                                override_address=edited_info['address'],
+                                override_second_name=edited_info['second_name']  # Add second name
                             )
                             
                             # Generate second letter using edited values
@@ -292,7 +294,8 @@ class LetterSection(QFrame):
                                 original_doc['content'],
                                 letter_type=edited_info['type'],
                                 override_names=edited_info['names'],
-                                override_address=edited_info['address']
+                                override_address=edited_info['address'],
+                                override_second_name=edited_info['second_name']  # Add second name
                             )
                             
                             # Generate filename from edited values

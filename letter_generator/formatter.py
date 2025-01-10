@@ -1,12 +1,19 @@
 """Formatting utilities for names and addresses."""
 import re
 import logging
+from typing import Optional
 from .exceptions import FormattingError
 
 logger = logging.getLogger(__name__)
 
-def format_names(full_names: str) -> tuple:
-    """Format names for header and salutation."""
+def format_names(full_names: str, override_salutation_name: Optional[str] = None) -> tuple:
+    """
+    Format names for header and salutation.
+    
+    Args:
+        full_names: Full names string to format
+        override_salutation_name: Optional override for the salutation name (Dear {} section)
+    """
     try:
         if not full_names:
             raise FormattingError("Names string is empty")
@@ -31,20 +38,24 @@ def format_names(full_names: str) -> tuple:
         # Join with & for header
         header_names = ' & '.join(names_list)
         
-        # Get first names for salutation
-        first_names = []
-        for name in names_list:
-            name_parts = name.split()
-            if name_parts:
-                first_names.append(name_parts[0])
-        
-        # Format salutation
-        if len(first_names) == 2:
-            salutation_names = f"{first_names[0]} and {first_names[1]}"
-        elif len(first_names) > 2:
-            salutation_names = ", ".join(first_names[:-1]) + f", and {first_names[-1]}"
+        # If override_salutation_name is provided, use it for salutation
+        if override_salutation_name:
+            salutation_names = title_case(override_salutation_name)
         else:
-            salutation_names = first_names[0]
+            # Get first names for salutation
+            first_names = []
+            for name in names_list:
+                name_parts = name.split()
+                if name_parts:
+                    first_names.append(name_parts[0])
+            
+            # Format salutation
+            if len(first_names) == 2:
+                salutation_names = f"{first_names[0]} and {first_names[1]}"
+            elif len(first_names) > 2:
+                salutation_names = ", ".join(first_names[:-1]) + f" and {first_names[-1]}"
+            else:
+                salutation_names = first_names[0]
             
         return header_names, salutation_names
         

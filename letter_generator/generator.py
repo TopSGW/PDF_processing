@@ -162,7 +162,8 @@ def generate_letter(
     letter_type: str = "annual",
     page_count: int = 1,
     override_names: Optional[str] = None,
-    override_address: Optional[Dict] = None
+    override_address: Optional[Dict] = None,
+    override_salutation_name: Optional[str] = None
 ) -> tuple:
     """
     Generate a wayleave letter based on document content.
@@ -173,6 +174,7 @@ def generate_letter(
         page_count: Number of pages in the document
         override_names: Optional names to use instead of extracted ones
         override_address: Optional address dict to use instead of extracted one
+        override_salutation_name: Optional salutation name to use in the Dear {} section
     """
     try:
         logger.info(f"Generating {letter_type} letter")
@@ -193,7 +195,7 @@ def generate_letter(
         address_to_use = override_address if override_address is not None else info['address']
         
         # Format details
-        header_names, salutation_names = format_names(names_to_use)
+        header_names, salutation_names = format_names(names_to_use, override_salutation_name)
         formatted_address = format_address(address_to_use)
         current_date = datetime.now().strftime("%d %B %Y")
         page_counts = (page_count - 1) if letter_type == "annual" else page_count
@@ -220,7 +222,8 @@ def generate_second_letter(
     content: str,
     letter_type: str = "annual",
     override_names: Optional[str] = None,
-    override_address: Optional[Dict] = None
+    override_address: Optional[Dict] = None,
+    override_salutation_name: Optional[str] = None
 ) -> tuple:
     """
     Generate a second wayleave letter based on document content.
@@ -230,6 +233,7 @@ def generate_second_letter(
         letter_type: Type of letter ('annual' or '15-year')
         override_names: Optional names to use instead of extracted ones
         override_address: Optional address dict to use instead of extracted one
+        override_salutation_name: Optional salutation name to use in the Dear {} section
     """
     try:
         logger.info(f"Generating second {letter_type} letter")
@@ -248,7 +252,7 @@ def generate_second_letter(
         address_to_use = override_address if override_address is not None else info['address']
         
         # Format details
-        header_names, salutation_names = format_names(names_to_use)
+        header_names, salutation_names = format_names(names_to_use, override_salutation_name)
         formatted_address = format_address(address_to_use)
         current_date = datetime.now().strftime("%d %B %Y")
 

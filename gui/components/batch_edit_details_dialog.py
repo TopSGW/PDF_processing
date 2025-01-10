@@ -16,14 +16,15 @@ class BatchEditDetailsDialog(QDialog):
     # Column indices for easy reference
     COL_DOCUMENT = 0
     COL_NAMES = 1
-    COL_ADDR_1 = 2
-    COL_ADDR_2 = 3
-    COL_ADDR_3 = 4
-    COL_ADDR_4 = 5
-    COL_ADDR_5 = 6
-    COL_ADDR_6 = 7
-    COL_POSTCODE = 8
-    COL_TYPE = 9
+    COL_SALUTATION_NAME = 2
+    COL_ADDR_1 = 3
+    COL_ADDR_2 = 4
+    COL_ADDR_3 = 5
+    COL_ADDR_4 = 6
+    COL_ADDR_5 = 7
+    COL_ADDR_6 = 8
+    COL_POSTCODE = 9
+    COL_TYPE = 10
     
     def __init__(self, documents_info: List[Dict], parent=None) -> None:
         """
@@ -31,7 +32,7 @@ class BatchEditDetailsDialog(QDialog):
         
         Args:
             documents_info: List of dictionaries containing document information
-                          Each dict should have 'names', 'address', and 'filename' keys
+                          Each dict should have 'names', 'salutation_name', 'address', and 'filename' keys
             parent: Parent widget
         """
         super().__init__(parent)
@@ -48,6 +49,34 @@ class BatchEditDetailsDialog(QDialog):
         self.settings = QSettings('KoduAI', 'PDFProcessor')
         
         self.init_ui()
+
+    def get_first_names(self, full_names: str) -> str:
+        """Extract and format first names from full names string."""
+        if not full_names:
+            return ""
+        
+        # Split names and get first names
+        first_names = []
+        # Split by AND or &
+        for full_name in re.split(' AND | & ', full_names):
+            # Remove any extra whitespace
+            full_name = full_name.strip()
+            if full_name:
+                # Split the name into parts and take the first part as the first name
+                name_parts = full_name.split()
+                if name_parts:
+                    # Convert to title case (first letter capital, rest lowercase)
+                    first_name = name_parts[0].capitalize()
+                    first_names.append(first_name)
+        
+        # Format first names
+        if len(first_names) == 2:
+            return f"{first_names[0]} and {first_names[1]}"  # Use lowercase "and"
+        elif len(first_names) > 2:
+            return ", ".join(first_names[:-1]) + f" and {first_names[-1]}"  # Use lowercase "and"
+        elif first_names:
+            return first_names[0]
+        return ""
         
     def init_ui(self) -> None:
         """Initialize the user interface with modern styling."""
@@ -131,7 +160,7 @@ class BatchEditDetailsDialog(QDialog):
         main_layout.addWidget(title_label)
         
         # Description
-        desc_label = QLabel("Edit details for all documents at once. Each row represents a document. Enter address lines in order, with the postcode at the end.")
+        desc_label = QLabel("Edit details for all documents at once. Each row represents a document. The 'Salutation Name' field is used in the 'Dear {}' section of the letter.")
         desc_label.setStyleSheet("font-weight: normal; color: #666;")
         main_layout.addWidget(desc_label)
         
@@ -144,10 +173,11 @@ class BatchEditDetailsDialog(QDialog):
         
         # Create table
         self.table = QTableWidget()
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(11)
         headers = [
             'Document',
             'Names',
+            'Salutation Name (Dear {})',
             'Address 1',
             'Address 2',
             'Address 3',
@@ -163,13 +193,14 @@ class BatchEditDetailsDialog(QDialog):
         default_widths = {
             self.COL_DOCUMENT: 200,    # Document
             self.COL_NAMES: 250,       # Names
+            self.COL_SALUTATION_NAME: 200, # Salutation Name
             self.COL_ADDR_1: 150,      # Address 1
             self.COL_ADDR_2: 150,      # Address 2
             self.COL_ADDR_3: 150,      # Address 3
             self.COL_ADDR_4: 150,      # Address 4
             self.COL_ADDR_5: 150,      # Address 5
             self.COL_ADDR_6: 150,      # Address 6
-            self.COL_POSTCODE: 200,    # Increased postcode width significantly
+            self.COL_POSTCODE: 200,    # Postcode
             self.COL_TYPE: 80,         # Type
         }
         
@@ -196,6 +227,11 @@ class BatchEditDetailsDialog(QDialog):
             # Names
             self.table.setItem(row, self.COL_NAMES, QTableWidgetItem(doc_info['names']))
             
+            # Salutation Name (for Dear {} section)
+            # Use existing salutation_name if available, otherwise generate from full names
+            salutation_name = doc_info.get('salutation_name', self.get_first_names(doc_info['names']))
+            self.table.setItem(row, self.COL_SALUTATION_NAME, QTableWidgetItem(salutation_name))
+            
             # Address lines 1-6
             for i in range(6):
                 addr_key = f'address_{i+1}'
@@ -207,7 +243,6 @@ class BatchEditDetailsDialog(QDialog):
             postcode = postcode.replace('\n', '')
             postcode_item = QTableWidgetItem(postcode)
             postcode_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            # Set flags to show full content
             postcode_item.setFlags(postcode_item.flags() | Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable)
             self.table.setItem(row, self.COL_POSTCODE, postcode_item)
             
@@ -275,10 +310,14 @@ class BatchEditDetailsDialog(QDialog):
         for row in range(self.table.rowCount()):
             # Get values from table
             names = self.table.item(row, self.COL_NAMES).text().strip()
+            salutation_name = self.table.item(row, self.COL_SALUTATION_NAME).text().strip()
             postcode = self.table.item(row, self.COL_POSTCODE).text().strip()
             
             if not names:
                 invalid_rows.append(f"Row {row + 1}: Names field cannot be empty")
+                
+            if not salutation_name:
+                invalid_rows.append(f"Row {row + 1}: Salutation Name field cannot be empty")
                 
             if not self.validate_postcode(postcode):
                 invalid_rows.append(f"Row {row + 1}: Invalid UK postcode format")
@@ -299,6 +338,10 @@ class BatchEditDetailsDialog(QDialog):
         for row, doc_info in enumerate(self.documents_info):
             # Reset names
             self.table.item(row, self.COL_NAMES).setText(doc_info['names'])
+            
+            # Reset salutation name
+            salutation_name = doc_info.get('salutation_name', self.get_first_names(doc_info['names']))
+            self.table.item(row, self.COL_SALUTATION_NAME).setText(salutation_name)
             
             # Reset address lines 1-6
             for i in range(6):
@@ -330,6 +373,7 @@ class BatchEditDetailsDialog(QDialog):
             self.edited_values.append({
                 'filename': self.table.item(row, self.COL_DOCUMENT).text(),
                 'names': self.table.item(row, self.COL_NAMES).text().strip(),
+                'salutation_name': self.table.item(row, self.COL_SALUTATION_NAME).text().strip(),
                 'address': address,
                 'type': self.table.item(row, self.COL_TYPE).text()
             })
