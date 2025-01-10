@@ -195,17 +195,20 @@ def generate_letter(
         address_to_use = override_address if override_address is not None else info['address']
         
         # Format details
-        header_names, salutation_names = format_names(names_to_use, override_salutation_name)
+        header_names, _ = format_names(names_to_use)  # Get header names only
         formatted_address = format_address(address_to_use)
         current_date = datetime.now().strftime("%d %B %Y")
         page_counts = (page_count - 1) if letter_type == "annual" else page_count
         sign_page = num2words(page_counts, to="ordinal").upper()
 
+        # Use override_salutation_name directly if provided, otherwise use formatted salutation
+        salutation_names = override_salutation_name if override_salutation_name is not None else info['salutation_name']
+
         # Generate letter
         letter = template.format(
             current_date,
             f"{header_names}\n{formatted_address}",
-            salutation_names,
+            salutation_names,  # Use salutation name directly
             sign_page
         )
         
@@ -252,15 +255,18 @@ def generate_second_letter(
         address_to_use = override_address if override_address is not None else info['address']
         
         # Format details
-        header_names, salutation_names = format_names(names_to_use, override_salutation_name)
+        header_names, _ = format_names(names_to_use)  # Get header names only
         formatted_address = format_address(address_to_use)
         current_date = datetime.now().strftime("%d %B %Y")
+
+        # Use override_salutation_name directly if provided, otherwise use formatted salutation
+        salutation_names = override_salutation_name if override_salutation_name is not None else info['salutation_name']
 
         # Generate letter
         letter = SECOND_LETTER_TEMPLATE.format(
             current_date,
             f"{header_names}\n{formatted_address}",
-            salutation_names
+            salutation_names,  # Use salutation name directly
         )
         
         filename = generate_filename(address_to_use)

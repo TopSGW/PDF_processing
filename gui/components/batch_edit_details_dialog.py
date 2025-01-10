@@ -348,6 +348,7 @@ class BatchEditDetailsDialog(QDialog):
                 if value:  # Only add non-empty lines
                     address[addr_key] = value
             
+            print(f"save salutation names::::::: {self.table.item(row, self.COL_SALUTATION_NAME).text().strip()}")
             # Add to edited values
             self.edited_values.append({
                 'filename': self.table.item(row, self.COL_DOCUMENT).text(),

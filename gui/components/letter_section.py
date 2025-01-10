@@ -228,7 +228,7 @@ class LetterSection(QFrame):
                                         'filename': doc_path.name,
                                         'path': doc_path,
                                         'names': info['full_names'],
-                                        'salutation_name': info.get('salutation_name', get_first_names(info['full_names'])),
+                                        'salutation_name': info['salutation_name'],
                                         'address': info['address'],
                                         'type': wayleave_type,
                                         'content': content,
