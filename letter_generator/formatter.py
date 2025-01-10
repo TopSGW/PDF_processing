@@ -38,9 +38,9 @@ def format_names(full_names: str, override_salutation_name: Optional[str] = None
         # Join with & for header
         header_names = ' & '.join(names_list)
         
-        # If override_salutation_name is provided, use it for salutation
-        if override_salutation_name:
-            salutation_names = title_case(override_salutation_name)
+        # If override_salutation_name is provided, use it exactly as provided
+        if override_salutation_name is not None:
+            salutation_names = override_salutation_name  # Use exactly as provided
         else:
             # Get first names for salutation
             first_names = []
@@ -49,7 +49,7 @@ def format_names(full_names: str, override_salutation_name: Optional[str] = None
                 if name_parts:
                     first_names.append(name_parts[0])
             
-            # Format salutation
+            # Format salutation with title case and lowercase "and"
             if len(first_names) == 2:
                 salutation_names = f"{first_names[0]} and {first_names[1]}"
             elif len(first_names) > 2:

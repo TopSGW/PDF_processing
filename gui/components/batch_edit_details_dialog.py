@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QColor
+from letter_generator.document_processor import get_first_names
 
 class BatchEditDetailsDialog(QDialog):
     """Dialog for editing multiple documents' details at once."""
@@ -49,34 +50,6 @@ class BatchEditDetailsDialog(QDialog):
         self.settings = QSettings('KoduAI', 'PDFProcessor')
         
         self.init_ui()
-
-    def get_first_names(self, full_names: str) -> str:
-        """Extract and format first names from full names string."""
-        if not full_names:
-            return ""
-        
-        # Split names and get first names
-        first_names = []
-        # Split by AND or &
-        for full_name in re.split(' AND | & ', full_names):
-            # Remove any extra whitespace
-            full_name = full_name.strip()
-            if full_name:
-                # Split the name into parts and take the first part as the first name
-                name_parts = full_name.split()
-                if name_parts:
-                    # Convert to title case (first letter capital, rest lowercase)
-                    first_name = name_parts[0].capitalize()
-                    first_names.append(first_name)
-        
-        # Format first names
-        if len(first_names) == 2:
-            return f"{first_names[0]} and {first_names[1]}"  # Use lowercase "and"
-        elif len(first_names) > 2:
-            return ", ".join(first_names[:-1]) + f" and {first_names[-1]}"  # Use lowercase "and"
-        elif first_names:
-            return first_names[0]
-        return ""
         
     def init_ui(self) -> None:
         """Initialize the user interface with modern styling."""
@@ -229,7 +202,10 @@ class BatchEditDetailsDialog(QDialog):
             
             # Salutation Name (for Dear {} section)
             # Use existing salutation_name if available, otherwise generate from full names
-            salutation_name = doc_info.get('salutation_name', self.get_first_names(doc_info['names']))
+            salutation_name = doc_info.get('salutation_name', '')
+            if not salutation_name:
+                # Get all first names from the full names
+                salutation_name = get_first_names(doc_info['names'])
             self.table.setItem(row, self.COL_SALUTATION_NAME, QTableWidgetItem(salutation_name))
             
             # Address lines 1-6
@@ -340,7 +316,10 @@ class BatchEditDetailsDialog(QDialog):
             self.table.item(row, self.COL_NAMES).setText(doc_info['names'])
             
             # Reset salutation name
-            salutation_name = doc_info.get('salutation_name', self.get_first_names(doc_info['names']))
+            salutation_name = doc_info.get('salutation_name', '')
+            if not salutation_name:
+                # Get all first names from the full names
+                salutation_name = get_first_names(doc_info['names'])
             self.table.item(row, self.COL_SALUTATION_NAME).setText(salutation_name)
             
             # Reset address lines 1-6

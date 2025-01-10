@@ -31,6 +31,7 @@ from letter_generator import (
 )
 from pdf_scanner import PDFContent
 from gui.components.batch_edit_details_dialog import BatchEditDetailsDialog
+from letter_generator.document_processor import get_first_names
 
 logger = logging.getLogger(__name__)
 
@@ -222,12 +223,12 @@ class LetterSection(QFrame):
                                     else:
                                         info = extract_names_and_address_fifteen_year(content)
                                     
-                                    # Add to documents info with second name
+                                    # Add to documents info
                                     documents_info.append({
                                         'filename': doc_path.name,
                                         'path': doc_path,
                                         'names': info['full_names'],
-                                        'second_name': info['full_names'].split()[0] if info['full_names'] else '',
+                                        'salutation_name': info.get('salutation_name', get_first_names(info['full_names'])),
                                         'address': info['address'],
                                         'type': wayleave_type,
                                         'content': content,
@@ -286,7 +287,7 @@ class LetterSection(QFrame):
                                 page_count=original_doc['page_count'],
                                 override_names=edited_info['names'],
                                 override_address=edited_info['address'],
-                                override_second_name=edited_info['second_name']  # Add second name
+                                override_salutation_name=edited_info['salutation_name']
                             )
                             
                             # Generate second letter using edited values
@@ -295,7 +296,7 @@ class LetterSection(QFrame):
                                 letter_type=edited_info['type'],
                                 override_names=edited_info['names'],
                                 override_address=edited_info['address'],
-                                override_second_name=edited_info['second_name']  # Add second name
+                                override_salutation_name=edited_info['salutation_name']
                             )
                             
                             # Generate filename from edited values

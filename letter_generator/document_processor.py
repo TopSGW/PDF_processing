@@ -49,6 +49,34 @@ def clean_address_line(line: str) -> str:
             return ' '.join(cleaned_parts) if cleaned_parts else parts[0]
     return line.strip()
 
+def get_first_names(full_names: str) -> str:
+    """Extract and format first names from full names string."""
+    if not full_names:
+        return ""
+    
+    # Split names and get first names
+    first_names = []
+    # Split by AND or &
+    for full_name in re.split(' AND | & ', full_names):
+        # Remove any extra whitespace
+        full_name = full_name.strip()
+        if full_name:
+            # Split the name into parts and take the first part as the first name
+            name_parts = full_name.split()
+            if name_parts:
+                # Convert to title case for initial style
+                first_name = name_parts[0].capitalize()
+                first_names.append(first_name)
+    
+    # Format first names with title case and lowercase "and"
+    if len(first_names) == 2:
+        return f"{first_names[0]} and {first_names[1]}"  # Use lowercase "and"
+    elif len(first_names) > 2:
+        return ", ".join(first_names[:-1]) + f" and {first_names[-1]}"  # Use lowercase "and"
+    elif first_names:
+        return first_names[0]
+    return ""
+
 def extract_names_and_address_annual(content: str) -> dict:
     """Extract names and address from annual wayleave document content."""
     try:
@@ -108,8 +136,12 @@ def extract_names_and_address_annual(content: str) -> dict:
         # Add postcode
         address_dict['postcode'] = postcode
 
+        # Get salutation name with title case and lowercase "and"
+        salutation_name = get_first_names(names)
+
         result = {
             'full_names': names,
+            'salutation_name': salutation_name,
             'address': address_dict
         }
 
@@ -172,9 +204,13 @@ def extract_names_and_address_fifteen_year(content: str) -> dict:
 
         # Add postcode
         address_dict['postcode'] = postcode
+
+        # Get salutation name with title case and lowercase "and"
+        salutation_name = get_first_names(names)
         
         result = {
             'full_names': names,
+            'salutation_name': salutation_name,
             'address': address_dict
         }
         
