@@ -54,25 +54,25 @@ def get_first_names(full_names: str) -> str:
     if not full_names:
         return ""
     
-    # Split names and get first names
+    # Replace various forms of 'AND' and other separators with a consistent separator
+    normalized = full_names.replace(' AND ', ',').replace('AND ', ',').replace(' & ', ',')
+    # Split by comma and clean up each part
+    names = [name.strip() for name in normalized.split(',') if name.strip()]
+    
+    # Extract first names
     first_names = []
-    # Split by AND or &
-    for full_name in re.split(' AND | & ', full_names):
-        # Remove any extra whitespace
-        full_name = full_name.strip()
-        if full_name:
-            # Split the name into parts and take the first part as the first name
-            name_parts = full_name.split()
-            if name_parts:
-                # Convert to title case for initial style
-                first_name = name_parts[0].capitalize()
-                first_names.append(first_name)
+    for full_name in names:
+        name_parts = full_name.split()
+        if name_parts:
+            # Convert to title case for initial style
+            first_name = name_parts[0].capitalize()
+            first_names.append(first_name)
     
     # Format first names with title case and lowercase "and"
     if len(first_names) == 2:
-        return f"{first_names[0]} and {first_names[1]}"  # Use lowercase "and"
+        return f"{first_names[0]} and {first_names[1]}"
     elif len(first_names) > 2:
-        return ", ".join(first_names[:-1]) + f" and {first_names[-1]}"  # Use lowercase "and"
+        return ", ".join(first_names[:-1]) + f" and {first_names[-1]}"
     elif first_names:
         return first_names[0]
     return ""
