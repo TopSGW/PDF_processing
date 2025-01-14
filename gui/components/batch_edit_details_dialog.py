@@ -28,17 +28,17 @@ class BatchEditDetailsDialog(QDialog):
     COL_TYPE = 10
     
     def __init__(self, documents_info: List[Dict], parent=None) -> None:
-        """
-        Initialize the dialog with multiple documents' details.
-        
-        Args:
-            documents_info: List of dictionaries containing document information
-                          Each dict should have 'names', 'salutation_name', 'address', and 'filename' keys
-            parent: Parent widget
-        """
+        """Initialize the dialog with multiple documents' details."""
         super().__init__(parent)
         self.setWindowTitle("Batch Edit Letter Details")
         self.setModal(True)
+        
+        # Enable window resizing
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
+        
+        # Set initial and minimum size
+        self.resize(800, 600)
+        self.setMinimumSize(600, 400)
         
         # Store original values
         self.documents_info = documents_info
@@ -50,89 +50,14 @@ class BatchEditDetailsDialog(QDialog):
         self.init_ui()
         
     def init_ui(self) -> None:
-        """Initialize the user interface with modern styling."""
-        # Set dialog style
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                font-size: 12px;
-                color: #333333;
-                font-weight: bold;
-            }
-            QPushButton {
-                padding: 8px 15px;
-                border-radius: 5px;
-                font-size: 12px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton#primary {
-                background-color: #4a90e2;
-                color: white;
-                border: none;
-            }
-            QPushButton#primary:hover {
-                background-color: #357abd;
-            }
-            QPushButton#secondary {
-                background-color: #f8f9fa;
-                color: #4a90e2;
-                border: 2px solid #4a90e2;
-            }
-            QPushButton#secondary:hover {
-                background-color: #e9ecef;
-            }
-            QPushButton#danger {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-            }
-            QPushButton#danger:hover {
-                background-color: #c82333;
-            }
-            QTableWidget {
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                background-color: white;
-                gridline-color: #e0e0e0;
-            }
-            QTableWidget::item {
-                padding: 5px;
-            }
-            QTableWidget::item:selected {
-                background-color: #e3f2fd;
-                color: black;
-            }
-            QHeaderView::section {
-                background-color: #f8f9fa;
-                padding: 5px;
-                border: 1px solid #e0e0e0;
-                font-weight: bold;
-            }
-            QHeaderView::section:hover {
-                background-color: #e9ecef;
-            }
-        """)
-        
+        """Initialize the user interface."""
         main_layout = QVBoxLayout()
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 20, 20, 20)
         
-        # Title section
-        title_label = QLabel("Batch Edit Letter Details")
-        title_label.setStyleSheet("""
-            font-size: 18px;
-            color: #2c3e50;
-            font-weight: bold;
-            padding-bottom: 10px;
-        """)
-        main_layout.addWidget(title_label)
-        
         # Description
         desc_label = QLabel("Edit details for all documents at once. Each row represents a document. The 'Salutation Name' field is used in the 'Dear {}' section of the letter.")
-        desc_label.setStyleSheet("font-weight: normal; color: #666;")
+        desc_label.setStyleSheet("color: #666; font-size: 12px;")
         desc_label.setWordWrap(True)
         main_layout.addWidget(desc_label)
         
@@ -161,19 +86,19 @@ class BatchEditDetailsDialog(QDialog):
         ]
         self.table.setHorizontalHeaderLabels(headers)
         
-        # Set reduced default column widths
+        # Set column widths to fill the available space
         default_widths = {
-            self.COL_DOCUMENT: 150,    # Document
-            self.COL_NAMES: 150,       # Names
-            self.COL_SALUTATION_NAME: 150, # Salutation Name
-            self.COL_ADDR_1: 120,      # Address 1
-            self.COL_ADDR_2: 120,      # Address 2
-            self.COL_ADDR_3: 120,      # Address 3
-            self.COL_ADDR_4: 120,      # Address 4
-            self.COL_ADDR_5: 120,      # Address 5
-            self.COL_ADDR_6: 120,      # Address 6
-            self.COL_POSTCODE: 100,    # Postcode
-            self.COL_TYPE: 80,         # Type
+            self.COL_DOCUMENT: 200,    # Document
+            self.COL_NAMES: 200,       # Names
+            self.COL_SALUTATION_NAME: 200, # Salutation Name
+            self.COL_ADDR_1: 150,      # Address 1
+            self.COL_ADDR_2: 150,      # Address 2
+            self.COL_ADDR_3: 150,      # Address 3
+            self.COL_ADDR_4: 150,      # Address 4
+            self.COL_ADDR_5: 150,      # Address 5
+            self.COL_ADDR_6: 150,      # Address 6
+            self.COL_POSTCODE: 120,    # Postcode
+            self.COL_TYPE: 100,        # Type
         }
         
         # Enable horizontal scrolling
@@ -247,15 +172,51 @@ class BatchEditDetailsDialog(QDialog):
         
         # Create styled buttons
         save_button = QPushButton("Save All Changes")
-        save_button.setObjectName("primary")
+        save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+        """)
         save_button.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
         
         cancel_button = QPushButton("Cancel")
-        cancel_button.setObjectName("secondary")
+        cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f8f9fa;
+                color: #4a90e2;
+                border: 2px solid #4a90e2;
+                padding: 8px 15px;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #e9ecef;
+            }
+        """)
         cancel_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCancelButton))
         
         reset_button = QPushButton("Reset All")
-        reset_button.setObjectName("danger")
+        reset_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+        """)
         reset_button.setIcon(self.style().standardIcon(QStyle.SP_DialogResetButton))
         
         # Connect buttons
@@ -270,7 +231,6 @@ class BatchEditDetailsDialog(QDialog):
         button_layout.addWidget(save_button)
         
         main_layout.addLayout(button_layout)
-        
         self.setLayout(main_layout)
         
     def on_column_resized(self, column: int, _, new_width: int) -> None:
