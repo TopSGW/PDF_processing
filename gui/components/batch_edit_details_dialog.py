@@ -39,8 +39,6 @@ class BatchEditDetailsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Batch Edit Letter Details")
         self.setModal(True)
-        self.setMinimumWidth(1200)
-        self.setMinimumHeight(800)
         
         # Store original values
         self.documents_info = documents_info
@@ -135,6 +133,7 @@ class BatchEditDetailsDialog(QDialog):
         # Description
         desc_label = QLabel("Edit details for all documents at once. Each row represents a document. The 'Salutation Name' field is used in the 'Dear {}' section of the letter.")
         desc_label.setStyleSheet("font-weight: normal; color: #666;")
+        desc_label.setWordWrap(True)
         main_layout.addWidget(desc_label)
         
         # Add separator
@@ -162,23 +161,28 @@ class BatchEditDetailsDialog(QDialog):
         ]
         self.table.setHorizontalHeaderLabels(headers)
         
-        # Set initial column widths
+        # Set reduced default column widths
         default_widths = {
-            self.COL_DOCUMENT: 200,    # Document
-            self.COL_NAMES: 250,       # Names
-            self.COL_SALUTATION_NAME: 200, # Salutation Name
-            self.COL_ADDR_1: 150,      # Address 1
-            self.COL_ADDR_2: 150,      # Address 2
-            self.COL_ADDR_3: 150,      # Address 3
-            self.COL_ADDR_4: 150,      # Address 4
-            self.COL_ADDR_5: 150,      # Address 5
-            self.COL_ADDR_6: 150,      # Address 6
-            self.COL_POSTCODE: 200,    # Postcode
+            self.COL_DOCUMENT: 150,    # Document
+            self.COL_NAMES: 150,       # Names
+            self.COL_SALUTATION_NAME: 150, # Salutation Name
+            self.COL_ADDR_1: 120,      # Address 1
+            self.COL_ADDR_2: 120,      # Address 2
+            self.COL_ADDR_3: 120,      # Address 3
+            self.COL_ADDR_4: 120,      # Address 4
+            self.COL_ADDR_5: 120,      # Address 5
+            self.COL_ADDR_6: 120,      # Address 6
+            self.COL_POSTCODE: 100,    # Postcode
             self.COL_TYPE: 80,         # Type
         }
         
+        # Enable horizontal scrolling
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
+        
         # Make all columns interactive (user-resizable)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(False)
         
         # Load saved column widths or use defaults
         for col, default_width in default_widths.items():
@@ -201,10 +205,8 @@ class BatchEditDetailsDialog(QDialog):
             self.table.setItem(row, self.COL_NAMES, QTableWidgetItem(doc_info['names']))
             
             # Salutation Name (for Dear {} section)
-            # Use existing salutation_name if available, otherwise generate from full names
             salutation_name = doc_info.get('salutation_name', '')
             if not salutation_name:
-                # Get all first names from the full names
                 salutation_name = get_first_names(doc_info['names'])
             self.table.setItem(row, self.COL_SALUTATION_NAME, QTableWidgetItem(salutation_name))
             
@@ -231,10 +233,12 @@ class BatchEditDetailsDialog(QDialog):
         # Set word wrap mode for the table
         self.table.setWordWrap(False)
         
-        # Create scroll area for table
+        # Create scroll area for table with both horizontal and vertical scrolling
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.table)
         scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         main_layout.addWidget(scroll_area)
         
         # Button layout
@@ -318,7 +322,6 @@ class BatchEditDetailsDialog(QDialog):
             # Reset salutation name
             salutation_name = doc_info.get('salutation_name', '')
             if not salutation_name:
-                # Get all first names from the full names
                 salutation_name = get_first_names(doc_info['names'])
             self.table.item(row, self.COL_SALUTATION_NAME).setText(salutation_name)
             
@@ -348,7 +351,6 @@ class BatchEditDetailsDialog(QDialog):
                 if value:  # Only add non-empty lines
                     address[addr_key] = value
             
-            print(f"save salutation names::::::: {self.table.item(row, self.COL_SALUTATION_NAME).text().strip()}")
             # Add to edited values
             self.edited_values.append({
                 'filename': self.table.item(row, self.COL_DOCUMENT).text(),
