@@ -1,5 +1,8 @@
 """Main letter generation logic."""
 import logging
+import os
+import time
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict
@@ -9,10 +12,10 @@ from docx.shared import Inches, Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_ORIENTATION
 from docx2pdf import convert
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import inch
+import win32com.client
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
 from constants import get_asset_path
 from .exceptions import GenerationError
@@ -28,6 +31,14 @@ from .document_processor import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Try to import psutil, but don't fail if it's not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logger.warning("psutil is not available. Fallback method will be used for terminating Word processes.")
 
 def create_word_letter(letter_content: str, output_path: Path, company_footer: str = COMPANY_FOOTER) -> None:
     """Create a Word (DOCX) letter with styling and formatting."""
@@ -140,8 +151,26 @@ def create_word_letter(letter_content: str, output_path: Path, company_footer: s
         logger.error(f"Error creating Word DOCX: {e}")
         raise GenerationError(f"Error creating Word DOCX: {str(e)}")
 
+def terminate_word_processes():
+    """Forcefully terminate all running Microsoft Word processes."""
+    if PSUTIL_AVAILABLE:
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] == 'WINWORD.EXE':
+                try:
+                    proc.terminate()
+                    logger.info(f"Terminated Word process with PID {proc.pid}")
+                except Exception as e:
+                    logger.error(f"Failed to terminate Word process with PID {proc.pid}: {e}")
+    else:
+        # Fallback method using subprocess
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "WINWORD.EXE"], check=True, capture_output=True)
+            logger.info("Terminated Word processes using fallback method")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to terminate Word processes using fallback method: {e}")
+
 def convert_pdf_letter(letter_content: str, output_path: Path) -> None:
-    """Convert Word letter to PDF."""
+    """Convert Word letter to PDF with retry logic and fallback methods."""
     try:
         # Create Word document with same name as final PDF
         docx_path = output_path.with_suffix('.docx')
@@ -149,13 +178,65 @@ def convert_pdf_letter(letter_content: str, output_path: Path) -> None:
         # Create Word document
         create_word_letter(letter_content, docx_path)
         
-        # Convert to PDF
-        convert(str(docx_path), str(output_path))
+        logger.info(f"Word document created successfully: {docx_path}")
         
-        # Note: We no longer delete the docx file
-            
+        # Check if the output directory exists and is writable
+        output_dir = output_path.parent
+        if not output_dir.exists():
+            logger.error(f"Output directory does not exist: {output_dir}")
+            raise GenerationError(f"Output directory does not exist: {output_dir}")
+        if not os.access(str(output_dir), os.W_OK):
+            logger.error(f"No write permission for output directory: {output_dir}")
+            raise GenerationError(f"No write permission for output directory: {output_dir}")
+        
+        # Attempt PDF conversion with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempting to convert {docx_path} to {output_path} (Attempt {attempt + 1})")
+                convert(str(docx_path), str(output_path))
+                logger.info(f"PDF conversion successful: {output_path}")
+                return
+            except Exception as e:
+                logger.warning(f"PDF conversion attempt {attempt + 1} failed: {str(e)}")
+                terminate_word_processes()
+                time.sleep(2)  # Wait before retrying
+        
+        # If all attempts fail, try fallback method
+        logger.error("All conversion attempts failed. Trying fallback method.")
+        # fallback_convert_pdf(docx_path, output_path)
+        
+        # Check if the PDF was actually created
+        if not output_path.exists():
+            logger.error(f"PDF file was not created: {output_path}")
+            raise GenerationError(f"PDF file was not created: {output_path}")
+        
     except Exception as e:
+        logger.error(f"Error creating PDF: {str(e)}", exc_info=True)
         raise GenerationError(f"Error creating PDF: {str(e)}")
+
+def fallback_convert_pdf(docx_path: Path, output_path: Path) -> None:
+    """Fallback method to convert DOCX to PDF using ReportLab."""
+    try:
+        # Read the content from the DOCX file
+        doc = Document(docx_path)
+        content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+
+        # Create a PDF using ReportLab
+        pdf = SimpleDocTemplate(str(output_path), pagesize=letter)
+        styles = getSampleStyleSheet()
+        flowables = []
+
+        for line in content.split('\n'):
+            p = Paragraph(line, styles['Normal'])
+            flowables.append(p)
+            flowables.append(Spacer(1, 12))
+
+        pdf.build(flowables)
+        logger.info(f"Fallback PDF conversion successful: {output_path}")
+    except Exception as e:
+        logger.error(f"Fallback PDF conversion failed: {str(e)}")
+        raise GenerationError(f"Fallback PDF conversion failed: {str(e)}")
 
 def generate_letter(
     content: str,

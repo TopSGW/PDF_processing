@@ -17,7 +17,8 @@ from letter_generator import (
     create_word_letter,
     convert_pdf_letter,
     extract_names_and_address_annual,
-    extract_names_and_address_fifteen_year
+    extract_names_and_address_fifteen_year,
+    GenerationError
 )
 from pdf_scanner import ScannerThread, PDFPair, PDFContent
 from gui.components.header_section import HeaderSection
@@ -59,7 +60,8 @@ class MainWindow(QWidget):
         
         # Initialize letter section with progress callback
         self.letter_section = LetterSection(
-            self.update_progress
+            self.update_progress,
+            self.handle_letter_generation_error
         )
         
         self.init_ui()
@@ -322,3 +324,38 @@ class MainWindow(QWidget):
                 "Error",
                 f"Error merging PDFs: {str(e)}"
             )
+    
+    def handle_letter_generation_error(self, error: Exception, details: dict) -> None:
+        """Handle errors during letter generation."""
+        error_message = str(error)
+        if isinstance(error, GenerationError):
+            # Handle specific GenerationError with more details
+            retry_count = details.get('retry_count', 0)
+            fallback_used = details.get('fallback_used', False)
+            
+            error_details = (
+                f"An error occurred during letter generation:\n\n{error_message}\n\n"
+                f"Conversion attempts: {retry_count}\n"
+                f"Fallback method used: {'Yes' if fallback_used else 'No'}\n\n"
+                "Please check the following:\n"
+                "1. Ensure you have write permissions for the output directory.\n"
+                "2. Verify that Microsoft Word is properly installed and accessible.\n"
+                "3. Check if there are any issues with the input PDF files.\n"
+                "4. Restart the application and try again.\n"
+                "5. If the problem persists, please contact support."
+            )
+            
+            QMessageBox.critical(
+                self,
+                "Letter Generation Error",
+                error_details
+            )
+        else:
+            # Handle other general errors
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"An unexpected error occurred during letter generation:\n\n{error_message}"
+            )
+        logger.error(f"Letter generation error: {error_message}")
+        logger.error(f"Error details: {details}")

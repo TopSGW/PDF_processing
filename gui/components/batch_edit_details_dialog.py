@@ -317,7 +317,8 @@ class BatchEditDetailsDialog(QDialog):
                 'names': self.table.item(row, self.COL_NAMES).text().strip(),
                 'salutation_name': self.table.item(row, self.COL_SALUTATION_NAME).text().strip(),
                 'address': address,
-                'type': self.table.item(row, self.COL_TYPE).text()
+                'type': self.table.item(row, self.COL_TYPE).text(),
+                'path': self.documents_info[row]['path']
             })
     
     def get_values(self) -> List[Dict]:
